@@ -30,3 +30,269 @@ Phase 5:
 A practical tip:
   Implement a simple "generate freely, parse after" version first just to see the model's raw output.
   That will help you understand where it fails, which makes Phase 5 much less abstract. Good luck!
+
+
+========================================
+
+Your project naturally breaks into stages.
+
+Recommended Development Order
+1. Parse and validate the input JSON files
+
+Start here.
+
+You have two structured inputs:
+
+ * prompts
+ * function definitions
+
+You should first make sure:
+
+ * files load correctly
+ * schema is what you expect
+ * malformed JSON is handled safely
+
+Example responsibilities:
+
+load_function_definitions()
+ * open file
+ * parse JSON
+ * validate required fields:
+   * name
+   * description
+   * parameters
+   * returns
+
+load_prompts()
+ * open file
+ * parse JSON
+ * validate each object contains:
+   * prompt
+
+Why this matters
+Later, when debugging the model, you do not want uncertainty about:
+
+ * broken input files
+ * missing fields
+ * wrong types
+ * invalid schemas
+
+You want confidence that:
+“The data layer is correct; only the model layer remains.”
+
+=========================================
+
+2. Define your internal structures
+
+You should represent functions internally in a predictable way.
+
+For example:
+
+class FunctionDefinition:
+    def __init__(self, name, description, parameters, returns):
+        self.name = name
+        self.description = description
+        self.parameters = parameters
+        self.returns = returns
+
+Or with dataclasses:
+
+from dataclasses import dataclass
+
+@dataclass
+class FunctionDefinition:
+    name: str
+    description: str
+    parameters: dict
+    returns: dict
+
+This makes later processing cleaner.
+
+===========================================
+
+3. Hardcode examples before using the LLM
+
+This is extremely important.
+
+Before introducing:
+
+ * constrained decoding
+ * token masking
+ * inference
+ * prompts
+
+you should verify the full pipeline works.
+
+Example:
+
+result = {
+    "prompt": "What is the sum of 2 and 3?",
+    "name": "fn_add_numbers",
+    "parameters": {
+        "a": 2.0,
+        "b": 3.0
+    }
+}
+
+Then:
+
+ * append to results list
+ * serialize to JSON
+ * save output file
+ * reload it
+ * validate structure
+
+This isolates:
+
+ * file handling
+ * output formatting
+ * schema correctness
+
+from:
+
+ * model behavior
+
+=============================================
+
+4. Build the expected output schema first
+
+Your model output must always become:
+
+{
+  "prompt": "...",
+  "name": "...",
+  "parameters": {}
+}
+
+So define this structure early.
+
+Example:
+
+def make_result(prompt, function_name, parameters):
+    return {
+        "prompt": prompt,
+        "name": function_name,
+        "parameters": parameters
+    }
+
+============================================
+
+5. Add deterministic matching before the LLM
+
+This is also useful.
+
+You can create simple rule-based tests first.
+
+Example:
+
+if "sum" in prompt:
+    function = "fn_add_numbers"
+
+This helps you verify:
+
+ * extraction logic
+ * serialization
+ * schema validation
+
+without any AI involved.
+
+========================================
+
+6. Only then integrate the LLM
+
+At this stage, your pipeline already works.
+
+The LLM becomes just:
+
+  prompt -> structured object
+
+instead of:
+
+ * parsing files
+ * validating schemas
+ * formatting output
+ * saving JSON
+ * inference
+
+all at once.
+
+That separation is important.
+
+========================================
+
+Where constrained decoding fits
+
+Constrained decoding belongs only in the generation stage.
+
+Pipeline:
+
+  Load JSON files
+      ↓
+  Build function registry
+      ↓
+  Send prompt + schemas to LLM
+      ↓
+  Constrained decoding generates valid JSON
+      ↓
+  Parse generated JSON
+      ↓
+  Validate against schema
+      ↓
+  Write output file
+
+What constrained decoding guarantees here
+
+{
+  "prompt": "What is the sum of 2 and 3?"
+  "name": "fn_add_numbers",
+  "parameters": {
+    "a": 2.0,
+    "b": 3.0
+  }
+}
+
+It ensures:
+
+ * valid JSON syntax
+ * required keys exist
+ * correct nesting
+ * proper types
+ * no extra prose
+
+
+A good minimal architecture
+
+Something like this:
+
+project/
+│
+├── data/
+│   ├── input/
+│   │   ├── function_calling_tests.json
+│   │   └── functions_definition.json
+│   │
+│   └── output/
+│       └── function_calling_results.json
+│
+├── src/
+│   ├── loader.py
+│   ├── validator.py
+│   ├── inference.py
+│   ├── schema.py
+│   └── main.py
+
+
+Suggested immediate next step
+Implement, in order:
+
+1.JSON loading
+2.Validation
+3.Internal representation
+4.Hardcoded output generation
+5.Output serialization
+6.Output validation
+7.Simple deterministic matcher
+8.LLM integration
+9.Constrained decoding
+
+That order minimizes debugging complexity substantially.
