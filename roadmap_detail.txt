@@ -1,0 +1,32 @@
+Phase 1: 
+  This just about being a good Python citizen. Before touching any ML,
+  make sure you can set up a project with uv, write a Makefile, add type hints,
+  and pass flake8 and mypy. This is mechanical but the graders check it hard.
+
+Phase 2:
+  This is plain Python. Write code that reads the two JSON files,
+  handles missing/invalid files gracefully, and writes the output format.
+  You can hardcode dummy results at first just to test the pipeline end-to-end.
+
+Phase 3:
+  This is where you learn what the SDK actually gives you.
+  The key insight: encode() turns text into a list of integers,
+  and get_logits_from_input_ids() returns one score per vocabulary token
+  — that score says "how likely is each token to come next?"
+  The vocabulary JSON maps each integer to its string. Spend time just printing these
+  things out and understanding the shapes.
+
+Phase 4:
+  This is the first hard part. The function name is the simplest thing to constrain
+  — at any point during generation, the only valid continuations are the characters/tokens
+  that could extend one of your known function names.
+  You build a kind of prefix tree from the names in functions_definition.json.
+
+Phase 5:
+  This is the hardest part. Generating valid JSON for the arguments requires you to track
+  where you are in the JSON grammar at every step (inside a string, inside a number, after a key, etc.)
+  and only allow tokens that keep it valid and match the expected type for that field.
+
+A practical tip:
+  Implement a simple "generate freely, parse after" version first just to see the model's raw output.
+  That will help you understand where it fails, which makes Phase 5 much less abstract. Good luck!
