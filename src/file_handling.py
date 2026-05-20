@@ -1,6 +1,6 @@
 from pathlib import Path
 from pydantic import BaseModel
-from typing import List, Dict, Any
+from typing import List, Dict, Union
 import json
 
 BASE_DIR = Path(__file__).resolve().parent.parent
@@ -11,15 +11,21 @@ input_prompts = BASE_DIR / "data" / "input" / "function_calling_tests.json"
 class Function(BaseModel):
     name: str
     description: str
-    parameters: Dict[str, Any]
-    returns: Dict[str, Any]
+    parameters: Dict[str, str]
+    returns: Dict[str, str]
 
 
 class Prompt(BaseModel):
     prompt: str
 
 
-def load_json(file_path: Path) -> List[Any]:
+class CallResult(BaseModel):
+    prompt: str
+    name: str
+    parameters: Dict[str, Union[str, int, float, bool]]
+
+
+def load_json(file_path: Path) -> List[Dict[str, str]]:
     with open(file_path, "r", encoding="utf-8") as f:
         return json.load(f)
 

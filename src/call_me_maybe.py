@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-from loader_validator import load_func_definitions, load_prompts
+from file_handling import load_func_definitions, load_prompts
 from pydantic import ValidationError
 
 
