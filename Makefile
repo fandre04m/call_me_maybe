@@ -4,7 +4,7 @@ MAIN=call_me_maybe.py
 
 install:
 	uv venv $(VENV)
-	uv sync --python $(PYTHON)
+	UV_PROJECT_ENVIRONMENT=$(VENV) uv sync
 
 run:
 	$(PYTHON) $(MAIN)
