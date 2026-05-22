@@ -1,5 +1,9 @@
 #!/usr/bin/env python3
-from file_handling import load_func_definitions, load_prompts
+from file_handling import (
+    load_func_definitions,
+    load_prompts,
+    write_call_result
+)
 from pydantic import ValidationError
 
 
@@ -13,6 +17,7 @@ def main() -> None:
         for item in prompts:
             print(item)
             print()
+        write_call_result()
     except (ValueError, ValidationError) as e:
         print(e)
 
