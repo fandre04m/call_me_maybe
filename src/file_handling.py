@@ -51,20 +51,11 @@ def load_prompts() -> List[Prompt]:
     return prompts
 
 
-def write_call_result() -> None:
-    mock_results = [
-        CallResult(
-            prompt="What is the sum of 2 and 3?",
-            name="fn_add_numbers",
-            parameters={"a": 2, "b": 3}
-        ),
-        CallResult(
-            prompt="Reverse the string 'hello'",
-            name="fn_reverse_string",
-            parameters={"s": "hello"}
-        )
-    ]
+def write_call_result(call_res: List[CallResult]) -> None:
     data = []
-    for res in mock_results:
+    for res in call_res:
         data.append(res.model_dump())
-    print(data)
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+
+    with open(output_path, "w", encoding="utf-8") as f:
+        json.dump(data, f, indent=2)

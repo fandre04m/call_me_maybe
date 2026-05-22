@@ -1,6 +1,6 @@
 VENV=~/goinfre/cmm_venv
 PYTHON=$(VENV)/bin/python3
-MAIN=call_me_maybe.py
+MAIN=src/call_me_maybe.py
 
 install:
 	uv venv $(VENV)
