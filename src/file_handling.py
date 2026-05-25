@@ -3,11 +3,6 @@ from pydantic import BaseModel
 from typing import List, Dict, Union
 import json
 
-BASE_DIR = Path(__file__).resolve().parent.parent
-input_funcs = BASE_DIR / "data" / "input" / "functions_definition.json"
-input_prompts = BASE_DIR / "data" / "input" / "function_calling_tests.json"
-output_path = BASE_DIR / "data" / "output" / "function_calling_results.json"
-
 
 class Function(BaseModel):
     name: str
@@ -31,8 +26,8 @@ def load_json(file_path: Path) -> List[Dict[str, str]]:
         return json.load(f)
 
 
-def load_func_definitions() -> List[Function]:
-    func_lst = load_json(input_funcs)
+def load_func_definitions(functions_path: Path) -> List[Function]:
+    func_lst = load_json(functions_path)
 
     functions: List[Function] = []
 
@@ -41,8 +36,8 @@ def load_func_definitions() -> List[Function]:
     return functions
 
 
-def load_prompts() -> List[Prompt]:
-    prompt_lst = load_json(input_prompts)
+def load_prompts(input_path: Path) -> List[Prompt]:
+    prompt_lst = load_json(input_path)
 
     prompts: List[Prompt] = []
 
@@ -51,7 +46,7 @@ def load_prompts() -> List[Prompt]:
     return prompts
 
 
-def write_call_result(call_res: List[CallResult]) -> None:
+def write_call_result(call_res: List[CallResult], output_path: Path) -> None:
     data = []
     for res in call_res:
         data.append(res.model_dump())

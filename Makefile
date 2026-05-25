@@ -1,13 +1,10 @@
-VENV=~/goinfre/cmm_venv
-PYTHON=$(VENV)/bin/python3
-MAIN=src/call_me_maybe.py
+PYTHON=.venv/bin/python3
 
 install:
-	uv venv $(VENV)
-	UV_PROJECT_ENVIRONMENT=$(VENV) uv sync
+	uv sync
 
 run:
-	$(PYTHON) $(MAIN)
+	uv run $(PYTHON) -m src
 
 debug:
 	$(PYTHON) -m pdb $(MAIN)
@@ -16,6 +13,7 @@ clean:
 	find . -type d -name "__pycache__" -exec rm -rf {} +
 	find . -type d -name ".mypy_cache" -exec rm -rf {} +
 	find . -type d -name ".pytest_cache" -exec rm -rf {} +
+	rm -rf .venv
 
 lint:
 	flake8 .
