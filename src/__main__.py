@@ -1,12 +1,7 @@
 #!/usr/bin/env python3
 from pathlib import Path
 import argparse
-from src.file_handling import (
-    load_func_definitions,
-    load_prompts,
-    write_call_result,
-    CallResult
-)
+from src import FileHandler, PromptBuilder, ModelCaller
 from pydantic import ValidationError
 import json
 
@@ -28,22 +23,18 @@ def main() -> None:
     )
     args = parser.parse_args()
 
-    mock_results = [
-        CallResult(
-            prompt="What is the sum of 2 and 3?",
-            name="fn_add_numbers",
-            parameters={"a": 2, "b": 3}
-        ),
-        CallResult(
-            prompt="Reverse the string 'hello'",
-            name="fn_reverse_string",
-            parameters={"s": "hello"}
-        )
-    ]
+    file_handler = FileHandler()
+    prompt_maker = PromptBuilder()
+    model = ModelCaller()
     try:
-        functions = load_func_definitions(Path(args.functions_definition))
-        prompts = load_prompts(Path(args.input))
-        write_call_result(mock_results, Path(args.output))
+        file_handler.load_func_definitions(Path(args.functions_definition))
+        file_handler.load_prompts(Path(args.input))
+        built_prompt = prompt_maker.build(
+            file_handler.func_definitions,
+            file_handler.prompts[0].prompt
+        )
+        model.run_prompt(built_prompt)
+        # file_handler.write_call_result(mock_results, Path(args.output))
     except FileNotFoundError as e:
         print(f"Error: file not found - {e}")
     except json.JSONDecodeError as e:
