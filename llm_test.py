@@ -9,9 +9,9 @@ def llm_test() -> None:
         "Available functions:\n ft_add_numbers(n1: int, n2: int) -> int\n" +
         " ft_greet(name: str) -> str\n" +
         "You must output ONLY the response\n" +
-        "Example question: What is the sum of 2 and 3?\n" +
-        "Example response: The correct function is -> ft_add_numbers(2, 3) -> int\n" +
-        "Question: What is the sum of 10 and 10?\n" +
+        # "Example question: What is the sum of 2 and 3?\n" +
+        # "Example response: The correct function is -> ft_add_numbers(2, 3) -> int\n" +
+        "Question: What is the sum of 10 and 20?\n" +
         "Response: \n"
     )
     # print(prompt)

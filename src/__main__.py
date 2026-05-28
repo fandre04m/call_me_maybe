@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+import time
 from pathlib import Path
 import argparse
 from src import FileHandler, PromptBuilder, ModelCaller
@@ -29,12 +30,6 @@ def main() -> None:
     try:
         file_handler.load_func_definitions(Path(args.functions_definition))
         file_handler.load_prompts(Path(args.input))
-        built_prompt = prompt_maker.build(
-            file_handler.func_definitions,
-            file_handler.prompts[0].prompt
-        )
-        model.run_prompt(built_prompt)
-        # file_handler.write_call_result(mock_results, Path(args.output))
     except FileNotFoundError as e:
         print(f"Error: file not found - {e}")
     except json.JSONDecodeError as e:
@@ -43,6 +38,17 @@ def main() -> None:
         print(f"Error: data not compatible - {e}")
     except (PermissionError, OSError) as e:
         print(f"Error: file system - {e}")
+
+    built_prompt = prompt_maker.build(
+        file_handler.func_definitions,
+        file_handler.prompts[10].prompt
+    )
+    print(f"\nPrompt: {file_handler.prompts[10].prompt}\n")
+    start_time = time.monotonic()
+    model.run_prompt(built_prompt)
+    elapsed = time.monotonic() - start_time
+    print(f"Elapsed time: {elapsed:.2f} secs")
+    # file_handler.write_call_result(mock_results, Path(args.output))
 
 
 main()

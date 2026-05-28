@@ -9,8 +9,15 @@ class PromptBuilder:
         user_prompt: str
     ) -> str:
         prompt = [
-            "You are a system that calls the correct function,",
-            "with the correct arguments, based on a given prompt.",
+            "You are function calling system.",
+            "",
+            "Your task is to select exactly one function",
+            "and produce ONLY valid JSON.",
+            "",
+            "Do not explain anything.",
+            "Do not output prose.",
+            "Do not output markdown.",
+            "Output JSON only.",
             "",
             "Available functions:",
             "",
@@ -23,15 +30,25 @@ class PromptBuilder:
                 prompt.append(f" - {name} ({param.type})")
             prompt.append("")
         prompt.extend([
-            "You must output ONLY valid JSON",
-            "",
-            "Required format:",
+            "Required answer format:",
             "{",
             '  "name": "function_name",',
             '  "parameters": {',
             '    "arg_name": "value"',
             "  }",
             "}",
+            "",
+            "Example user request:",
+            "What is the sum of 4 and 7?",
+            "",
+            "Example answer:",
+            "{",
+            '  "name": "ft_add_numbers",',
+            '  "parameters": {',
+            '    "a": "4",',
+            '    "b": "7"',
+            "  }",
+            "},",
             "",
             "User request:",
             user_prompt
