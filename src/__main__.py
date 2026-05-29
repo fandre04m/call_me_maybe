@@ -1,5 +1,4 @@
 #!/usr/bin/env python3
-import time
 from pathlib import Path
 import argparse
 from src import FileHandler, PromptBuilder, ModelCaller
@@ -39,15 +38,14 @@ def main() -> None:
     except (PermissionError, OSError) as e:
         print(f"Error: file system - {e}")
 
+    # for p in file_handler.prompts:
     built_prompt = prompt_maker.build(
         file_handler.func_definitions,
-        file_handler.prompts[10].prompt
+        file_handler.prompts[0].prompt
     )
-    print(f"\nPrompt: {file_handler.prompts[10].prompt}\n")
-    start_time = time.monotonic()
+    print(f"\nPrompt: {file_handler.prompts[0].prompt}\n")
     model.run_prompt(built_prompt)
-    elapsed = time.monotonic() - start_time
-    print(f"Elapsed time: {elapsed:.2f} secs")
+    print(f"Elapsed time: {model.elapsed:.2f} seconds")
     # file_handler.write_call_result(mock_results, Path(args.output))
 
 
