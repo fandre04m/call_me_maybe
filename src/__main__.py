@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 from pathlib import Path
 import argparse
-from src import FileHandler, PromptBuilder, LLMHandler
+from src import FileLoader, PromptBuilder, LLMHandler, PrefixTrie
 from pydantic import ValidationError
 import json
 
@@ -23,12 +23,13 @@ def main() -> None:
     )
     args = parser.parse_args()
 
-    file_handler = FileHandler()
-    prompt_maker = PromptBuilder()
-    model = LLMHandler(file_handler.func_definitions)
+    file_loader = FileLoader()
+    # prompt_maker = PromptBuilder()
+    model = LLMHandler()
+    func_trie = PrefixTrie()
     try:
-        file_handler.load_func_definitions(Path(args.functions_definition))
-        file_handler.load_prompts(Path(args.input))
+        file_loader.load_func_definitions(Path(args.functions_definition))
+        file_loader.load_prompts(Path(args.input))
     except FileNotFoundError as e:
         print(f"Error: file not found - {e}")
     except json.JSONDecodeError as e:
@@ -39,12 +40,15 @@ def main() -> None:
         print(f"Error: file system - {e}")
 
     # for p in file_handler.prompts:
-    built_prompt = prompt_maker.build(
-        file_handler.func_definitions,
-        file_handler.prompts[0].prompt
-    )
-    model.func_name_tokens()
-    model.param_name_tokens()
+    # built_prompt = prompt_maker.build(
+    #     file_loader.func_definitions,
+    #     file_loader.prompts[0].prompt
+    # )
+    for func in file_loader.func_definitions:
+        token_ids = model.get_func_name_tokens(func.name)
+        func_trie.insert(token_ids, func.name)
+
+    # model.param_name_tokens()
     # print(f"\nPrompt: {file_handler.prompts[0].prompt}\n")
     # model.run_prompt(built_prompt)
     # print(f"Elapsed time: {model.elapsed:.2f} seconds")

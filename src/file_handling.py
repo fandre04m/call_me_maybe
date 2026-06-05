@@ -42,7 +42,7 @@ def load_json(file_path: Path) -> List[Dict[str, str]]:
         return json.load(f)
 
 
-class FileHandler:
+class FileLoader:
     """
     Class to load and validate the JSON files
     and to write the validated output.

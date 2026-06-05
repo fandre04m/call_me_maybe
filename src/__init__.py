@@ -1,8 +1,10 @@
-from .file_handling import FileHandler, Function, Prompt
+from .file_handling import FileLoader, Function, Prompt
 from .prompt_builder import PromptBuilder
-from .constrainer import LLMHandler
+from .llm_handler import LLMHandler
+from .f_s_m import PrefixTrie
 
 __all__ = [
-    "FileHandler", "Function",
-    "Prompt", "PromptBuilder", "LLMHandler"
+    "FileLoader", "Function",
+    "Prompt", "PromptBuilder", "LLMHandler",
+    "PrefixTrie"
 ]
