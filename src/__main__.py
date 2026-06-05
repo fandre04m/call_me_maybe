@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 from pathlib import Path
 import argparse
-from src import FileHandler, PromptBuilder, ModelCaller
+from src import FileHandler, PromptBuilder, LLMHandler
 from pydantic import ValidationError
 import json
 
@@ -25,7 +25,7 @@ def main() -> None:
 
     file_handler = FileHandler()
     prompt_maker = PromptBuilder()
-    model = ModelCaller()
+    model = LLMHandler(file_handler.func_definitions)
     try:
         file_handler.load_func_definitions(Path(args.functions_definition))
         file_handler.load_prompts(Path(args.input))
@@ -43,9 +43,11 @@ def main() -> None:
         file_handler.func_definitions,
         file_handler.prompts[0].prompt
     )
-    print(f"\nPrompt: {file_handler.prompts[0].prompt}\n")
-    model.run_prompt(built_prompt)
-    print(f"Elapsed time: {model.elapsed:.2f} seconds")
+    model.func_name_tokens()
+    model.param_name_tokens()
+    # print(f"\nPrompt: {file_handler.prompts[0].prompt}\n")
+    # model.run_prompt(built_prompt)
+    # print(f"Elapsed time: {model.elapsed:.2f} seconds")
     # file_handler.write_call_result(mock_results, Path(args.output))
 
 
