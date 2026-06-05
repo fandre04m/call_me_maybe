@@ -28,9 +28,6 @@ class LLMHandler:
 
     def get_func_name_tokens(self, func_name: str) -> List[int]:
         func_name_tokens = self.llm.encode(func_name)
-        # print(func.name)
-        # for token in token_ids:
-        #     print(self.llm.decode(token))
         return (func_name_tokens[0].tolist())
     #
     # def get_param_name_tokens(self) -> List[int]:

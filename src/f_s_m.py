@@ -1,4 +1,5 @@
 from typing import Dict, List, Set
+from enum import Enum
 
 
 class TrieNode():
@@ -51,3 +52,13 @@ class PrefixTrie():
 
     def is_complete(self, prefix: List[int]) -> bool:
         return self.get_name(prefix) is not None
+
+
+class Estate(Enum):
+    SELECT_FUNCTION = 1
+    DONE = 2
+
+
+class GeneratorFSM():
+    def __init__(self) -> None:
+        self.state = Estate.SELECT_FUNCTION
