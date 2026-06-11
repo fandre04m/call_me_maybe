@@ -56,9 +56,10 @@ class PrefixTrie():
         return self.get_name(prefix) is not None
 
 
-class Estate(Enum):
+class State(Enum):
     SELECT_FUNCTION = 1
-    DONE = 2
+    SELECT_PARAMS = 2
+    DONE = 3
 
 
 class GeneratorFSM():
@@ -66,9 +67,10 @@ class GeneratorFSM():
         self.llm = Small_LLM_Model()
         self.functions = functions
         self.elapsed_time: float = 0.0
-        self.state = Estate.SELECT_FUNCTION
+        self.state = State.SELECT_FUNCTION
+        self.func_name = ""
+        self.input_ids = []
         self.func_trie = PrefixTrie()
-        self.param_trie = PrefixTrie()
 
         for func in functions:
             token_ids = self.llm.encode(func.name)[0].tolist()
@@ -102,9 +104,26 @@ class GeneratorFSM():
             generated.append(next_token)
 
         self.elapsed_time += time.monotonic() - start
-        print(generated)
+        self.input_ids = input_ids
         return self.llm.decode(generated)
 
+    def gen_param_names(self, func_name: str) -> None:
+        params = {}
+        for func in self.functions:
+            if func.name == func_name:
+                params = func.parameters
+
+        param_trie = PrefixTrie()
+        for param_name in params:
+            token_ids = self.llm.encode(param_name)[0].tolist()
+            param_trie.insert(token_ids, param_name)
+
+        print(func_name)
+        print(param_trie.allowed_tokens([]))
+
     def run(self, user_prompt: str) -> None:
-        selected_function = self.gen_func_name(user_prompt)
-        print(selected_function)
+        self.func_name = self.gen_func_name(user_prompt)
+        self.state = State.SELECT_PARAMS
+
+        self.gen_param_names(self.func_name)
+        self.state = State.DONE
