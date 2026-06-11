@@ -1,5 +1,7 @@
 from typing import Dict, List, Set
 from enum import Enum
+from llm_sdk import Small_LLM_Model
+from src import Function
 
 
 class TrieNode():
@@ -18,7 +20,6 @@ class PrefixTrie():
         for token_id in name_ids:
             if token_id not in current.children:
                 current.children[token_id] = TrieNode()
-
             current = current.children[token_id]
 
         current.name = name
@@ -60,5 +61,26 @@ class Estate(Enum):
 
 
 class GeneratorFSM():
-    def __init__(self) -> None:
+    def __init__(self, functions: List[Function]) -> None:
+        self.llm = Small_LLM_Model()
+        self.elapsed_time: float = 0.0
         self.state = Estate.SELECT_FUNCTION
+        self.func_trie = PrefixTrie()
+
+        for func in functions:
+            token_ids = self.llm.encode(func.name)[0].tolist()
+            self.func_trie.insert(token_ids, func.name)
+
+    def gen_func_name(self) -> None:
+        generated: List[int] = []
+
+        while not self.func_trie.is_complete(generated):
+            allowed = self.func_trie.allowed_tokens(generated)
+            next_token = min(allowed)
+            generated.append(next_token)
+
+        print(self.llm.decode(generated))
+        print(self.func_trie.get_name(generated))
+
+    def run(self):
+        pass
