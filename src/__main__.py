@@ -37,7 +37,10 @@ def main() -> None:
         print(f"Error: file system - {e}")
 
     fsm = GeneratorFSM(file_loader.func_definitions)
-    fsm.gen_func_name()
+    # for prompt in file_loader.prompts:
+    fsm.run(file_loader.prompts[0].prompt)
+    print(f"Elapsed time: {fsm.elapsed_time:.2f}")
+    print()
 
 
 main()

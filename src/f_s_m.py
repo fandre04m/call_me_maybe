@@ -1,7 +1,8 @@
 from typing import Dict, List, Set
 from enum import Enum
 from llm_sdk import Small_LLM_Model
-from src import Function
+from src import Function, PromptBuilder
+import time
 
 
 class TrieNode():
@@ -63,24 +64,47 @@ class Estate(Enum):
 class GeneratorFSM():
     def __init__(self, functions: List[Function]) -> None:
         self.llm = Small_LLM_Model()
+        self.functions = functions
         self.elapsed_time: float = 0.0
         self.state = Estate.SELECT_FUNCTION
         self.func_trie = PrefixTrie()
+        self.param_trie = PrefixTrie()
 
         for func in functions:
             token_ids = self.llm.encode(func.name)[0].tolist()
             self.func_trie.insert(token_ids, func.name)
 
-    def gen_func_name(self) -> None:
+    def mask_logits(
+        self,
+        logits: List[float],
+        allowed: Set[int]
+    ) -> List[float]:
+        for token_id in range(len(logits)):
+            if token_id not in allowed:
+                logits[token_id] = float("-inf")
+        return logits
+
+    def gen_func_name(self, user_prompt: str) -> str:
+        fixed_prompt = PromptBuilder()
+        prompt = fixed_prompt.build(self.functions) + user_prompt
+        print(user_prompt)
         generated: List[int] = []
+
+        start = time.monotonic()
+        input_ids = self.llm.encode(prompt)[0].tolist()
 
         while not self.func_trie.is_complete(generated):
             allowed = self.func_trie.allowed_tokens(generated)
-            next_token = min(allowed)
+            logits = self.llm.get_logits_from_input_ids(input_ids)
+            masked_logits = self.mask_logits(logits, allowed)
+            next_token = masked_logits.index(max(masked_logits))
+            input_ids.append(next_token)
             generated.append(next_token)
 
-        print(self.llm.decode(generated))
-        print(self.func_trie.get_name(generated))
+        self.elapsed_time += time.monotonic() - start
+        print(generated)
+        return self.llm.decode(generated)
 
-    def run(self):
-        pass
+    def run(self, user_prompt: str) -> None:
+        selected_function = self.gen_func_name(user_prompt)
+        print(selected_function)

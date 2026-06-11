@@ -1,4 +1,4 @@
-from .file_handling import Function
+from src import Function
 from typing import List
 
 
@@ -6,7 +6,6 @@ class PromptBuilder:
     def build(
         self,
         functions: List[Function],
-        user_prompt: str
     ) -> str:
         prompt = [
             "You are function calling system.",
@@ -14,10 +13,10 @@ class PromptBuilder:
             "Your task is to select exactly one function ",
             "and it's required arguments.",
             # "and produce ONLY valid JSON.",
-            "",
-            "Do not output reasoning.",
-            "Do not output prose.",
-            "Do not output markdown.",
+            # "",
+            # "Do not output reasoning.",
+            # "Do not output prose.",
+            # "Do not output markdown.",
             "",
             "Available functions:",
             "",
@@ -40,7 +39,7 @@ class PromptBuilder:
             # '    "arg_name": "value"',
             # "  }",
             # "}",
-            "<END>",
+            # "<END>",
             "",
             "Example user request:",
             "What is the sum of 4 and 7?",
@@ -64,9 +63,8 @@ class PromptBuilder:
             # '    "b": "7"',
             # "  }",
             # "},",
-            "<END>",
+            # "<END>",
             "",
-            "User request:",
-            user_prompt
+            "User request: ",
         ])
         return "\n".join(prompt)
