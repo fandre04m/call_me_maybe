@@ -25,7 +25,7 @@ class PrefixTrie():
 
         current.name = name
 
-    def get_node(self, prefix: List[int]) -> TrieNode | None:
+    def _get_node(self, prefix: List[int]) -> TrieNode | None:
         current = self.root
 
         for token_id in prefix:
@@ -37,7 +37,7 @@ class PrefixTrie():
         return current
 
     def allowed_tokens(self, prefix: List[int]) -> Set[int]:
-        node: TrieNode | None = self.get_node(prefix)
+        node: TrieNode | None = self._get_node(prefix)
 
         if node is None:
             return set()
@@ -45,7 +45,7 @@ class PrefixTrie():
         return set(node.children.keys())
 
     def get_name(self, prefix: List[int]) -> str | None:
-        node: TrieNode | None = self.get_node(prefix)
+        node: TrieNode | None = self._get_node(prefix)
 
         if node is None:
             return None
@@ -58,25 +58,26 @@ class PrefixTrie():
 
 class State(Enum):
     SELECT_FUNCTION = 1
-    SELECT_PARAMS = 2
+    SELECT_PARAM = 2
     DONE = 3
 
 
 class GeneratorFSM():
     def __init__(self, functions: List[Function]) -> None:
         self.llm = Small_LLM_Model()
+        self.func_trie = PrefixTrie()
         self.functions = functions
         self.elapsed_time: float = 0.0
         self.state = State.SELECT_FUNCTION
         self.func_name = ""
+        self.remaining_params = []
         self.input_ids = []
-        self.func_trie = PrefixTrie()
 
         for func in functions:
             token_ids = self.llm.encode(func.name)[0].tolist()
             self.func_trie.insert(token_ids, func.name)
 
-    def mask_logits(
+    def _mask_logits(
         self,
         logits: List[float],
         allowed: Set[int]
@@ -86,21 +87,18 @@ class GeneratorFSM():
                 logits[token_id] = float("-inf")
         return logits
 
-    def gen_func_name(self, user_prompt: str) -> str:
-        fixed_prompt = PromptBuilder()
-        prompt = fixed_prompt.build(self.functions) + user_prompt
-        print(user_prompt)
+    def gen_func_name(self, prompt: str) -> str:
         generated: List[int] = []
 
         start = time.monotonic()
-        input_ids = self.llm.encode(prompt)[0].tolist()
+        self.input_ids = self.llm.encode(prompt)[0].tolist()
 
         while not self.func_trie.is_complete(generated):
             allowed = self.func_trie.allowed_tokens(generated)
-            logits = self.llm.get_logits_from_input_ids(input_ids)
-            masked_logits = self.mask_logits(logits, allowed)
+            logits = self.llm.get_logits_from_input_ids(self.input_ids)
+            masked_logits = self._mask_logits(logits, allowed)
             next_token = masked_logits.index(max(masked_logits))
-            input_ids.append(next_token)
+            self.input_ids.append(next_token)
             generated.append(next_token)
 
         if self.func_trie.get_name(generated) == "fn_no_match":
@@ -109,27 +107,43 @@ class GeneratorFSM():
             )
 
         self.elapsed_time += time.monotonic() - start
-        self.input_ids = input_ids
-        print(self.llm.decode(generated))
         return self.llm.decode(generated)
-    #
-    # def gen_param_names(self, func_name: str) -> None:
-    #     params = {}
-    #     for func in self.functions:
-    #         if func.name == func_name:
-    #             params = func.parameters
-    #
-    #     param_trie = PrefixTrie()
-    #     for param_name in params:
-    #         token_ids = self.llm.encode(param_name)[0].tolist()
-    #         param_trie.insert(token_ids, param_name)
-    #
-    #     print(func_name)
-        # print(param_trie.allowed_tokens([]))
+
+    def gen_param_names(self) -> str:
+        param_trie = PrefixTrie()
+
+        for param in self.remaining_params:
+            token_ids = self.llm.encode(param)[0].tolist()
+            param_trie.insert(token_ids, param)
+
+        generated: List[int] = []
+        start = time.monotonic()
+        while not param_trie.is_complete(generated):
+            allowed = param_trie.allowed_tokens(generated)
+            logits = self.llm.get_logits_from_input_ids(self.input_ids)
+            masked_logits = self._mask_logits(logits, allowed)
+            next_token = masked_logits.index(max(masked_logits))
+            self.input_ids.append(next_token)
+            generated.append(next_token)
+
+        self.elapsed_time += time.monotonic() - start
+        self.remaining_params.remove(self.llm.decode(generated))
+        return self.llm.decode(generated)
 
     def run(self, user_prompt: str) -> None:
-        self.func_name = self.gen_func_name(user_prompt)
-        self.state = State.SELECT_PARAMS
-        #
-        # self.gen_param_names(self.func_name)
-        # self.state = State.DONE
+        fixed_prompt = PromptBuilder()
+        prompt = fixed_prompt.build(self.functions) + user_prompt
+        print(user_prompt)
+
+        self.func_name = self.gen_func_name(prompt)
+        print(self.func_name)
+        self.state = State.SELECT_PARAM
+
+        for func in self.functions:
+            if func.name == self.func_name:
+                self.remaining_params = list(func.parameters.keys())
+
+        while self.remaining_params:
+            param_name = self.gen_param_names()
+            print(param_name)
+        self.state = State.DONE
