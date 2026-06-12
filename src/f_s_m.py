@@ -105,25 +105,26 @@ class GeneratorFSM():
 
         self.elapsed_time += time.monotonic() - start
         self.input_ids = input_ids
+        print(self.llm.decode(generated))
         return self.llm.decode(generated)
-
-    def gen_param_names(self, func_name: str) -> None:
-        params = {}
-        for func in self.functions:
-            if func.name == func_name:
-                params = func.parameters
-
-        param_trie = PrefixTrie()
-        for param_name in params:
-            token_ids = self.llm.encode(param_name)[0].tolist()
-            param_trie.insert(token_ids, param_name)
-
-        print(func_name)
-        print(param_trie.allowed_tokens([]))
+    #
+    # def gen_param_names(self, func_name: str) -> None:
+    #     params = {}
+    #     for func in self.functions:
+    #         if func.name == func_name:
+    #             params = func.parameters
+    #
+    #     param_trie = PrefixTrie()
+    #     for param_name in params:
+    #         token_ids = self.llm.encode(param_name)[0].tolist()
+    #         param_trie.insert(token_ids, param_name)
+    #
+    #     print(func_name)
+        # print(param_trie.allowed_tokens([]))
 
     def run(self, user_prompt: str) -> None:
         self.func_name = self.gen_func_name(user_prompt)
         self.state = State.SELECT_PARAMS
-
-        self.gen_param_names(self.func_name)
-        self.state = State.DONE
+        #
+        # self.gen_param_names(self.func_name)
+        # self.state = State.DONE

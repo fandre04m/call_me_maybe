@@ -4,7 +4,7 @@ from typing import List, Dict, Union
 import json
 
 
-class ParameterAndRet(BaseModel):
+class Parameter(BaseModel):
     """
     Parameter structure validation
     """
@@ -17,8 +17,8 @@ class Function(BaseModel):
     """
     name: str
     description: str
-    parameters: Dict[str, ParameterAndRet]
-    returns: ParameterAndRet
+    parameters: Dict[str, Parameter]
+    returns: Dict[str, str]
 
 
 class Prompt(BaseModel):
@@ -55,6 +55,15 @@ class FileLoader:
         func_lst = load_json(functions_path)
         for func in func_lst:
             self.func_definitions.append(Function.model_validate(func))
+        none_func = Function(
+            name='fn_no_match',
+            description='No available function can satisfy the request',
+            parameters={},
+            returns={
+                "type": "none"
+            }
+        )
+        self.func_definitions.append(Function.model_validate(none_func))
 
     def load_prompts(self, input_path: Path) -> None:
         prompt_lst = load_json(input_path)

@@ -38,6 +38,7 @@ def main() -> None:
 
     fsm = GeneratorFSM(file_loader.func_definitions)
     # for prompt in file_loader.prompts:
+    # fsm.run("What is the power of a porsche 911?")
     fsm.run(file_loader.prompts[0].prompt)
     print(f"Elapsed time: {fsm.elapsed_time:.2f}")
     print()
