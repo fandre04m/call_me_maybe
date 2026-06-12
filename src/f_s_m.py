@@ -103,6 +103,11 @@ class GeneratorFSM():
             input_ids.append(next_token)
             generated.append(next_token)
 
+        if self.func_trie.get_name(generated) == "fn_no_match":
+            raise ValueError(
+                "Could not find a valid function for the prompt."
+            )
+
         self.elapsed_time += time.monotonic() - start
         self.input_ids = input_ids
         print(self.llm.decode(generated))
