@@ -65,6 +65,7 @@ class State(Enum):
 
 class GeneratorFSM():
     def __init__(self, functions: List[Function]) -> None:
+        self.max_tokens = 5
         self.llm = Small_LLM_Model()
         self.func_trie = PrefixTrie()
         self.functions = functions
@@ -131,8 +132,22 @@ class GeneratorFSM():
         self.remaining_params.remove(self.llm.decode(generated))
         return self.llm.decode(generated)
 
-    def gen_param_val(self) -> None:
-        pass
+    def gen_param_val(self) -> str:
+        generated = []
+
+        start = time.monotonic()
+        while len(generated) < self.max_tokens:
+            logits = self.llm.get_logits_from_input_ids(self.input_ids)
+            next_token = logits.index(max(logits))
+            print(next_token)
+            print(self.llm.decode([next_token]))
+            # if next_token == 27:
+            #     break
+            self.input_ids.append(next_token)
+            generated.append(next_token)
+
+        self.elapsed_time += time.monotonic() - start
+        return self.llm.decode(generated)
 
     def run(self, user_prompt: str) -> None:
         fixed_prompt = PromptBuilder()
@@ -152,18 +167,19 @@ class GeneratorFSM():
             param_name = self.gen_param_name()
             print(param_name)
             self.state = State.SELECT_VALUE
-            # self.gen_param_val()
-            param_type = self.curr_func.parameters[param_name].type
-            print(param_type)
-            if param_type == "number" or param_type == "float":
-                pass
-            elif param_type == "string":
-                pass
-            else:
-                raise ValueError(
-                    "Invalid parameter type."
-                )
-            self.state = State.SELECT_PARAM
+            # param_type = self.curr_func.parameters[param_name].type
+            # print(param_type)
+            param_value = self.gen_param_val()
+            print(param_value)
+            # if param_type == "number" or param_type == "float":
+            #     pass
+            # elif param_type == "string":
+            #     pass
+            # else:
+            #     raise ValueError(
+            #         "Invalid parameter type."
+            #     )
+        self.state = State.SELECT_PARAM
 
         if not self.remaining_params:
             self.state = State.DONE

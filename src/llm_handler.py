@@ -1,15 +1,19 @@
 from typing import List
 from llm_sdk import Small_LLM_Model
 import time
+from src import PromptBuilder
 
 
 class LLMHandler:
-    def __init__(self) -> None:
+    def __init__(self, functions) -> None:
         self.llm = Small_LLM_Model()
         self.max_tokens: int = 50
         self.elapsed: float = 0.0
+        self.functions = functions
 
-    def run_prompt(self, prompt: str) -> None:
+    def run_prompt(self, user_prompt: str) -> None:
+        fixed_prompt = PromptBuilder()
+        prompt = fixed_prompt.build(self.functions) + user_prompt
         res_str = ""
         start = time.monotonic()
         input_tokens = self.llm.encode(prompt)
@@ -19,16 +23,16 @@ class LLMHandler:
             logits = self.llm.get_logits_from_input_ids(token_ids)
             next_token_id = int(logits.index(max(logits)))
             token_ids.append(next_token_id)
-            token = self.llm.decode(next_token_id)
-            if token == "<":
-                break
+            token = self.llm.decode([next_token_id])
+            # if token == "<":
+            #     break
             res_str += token
         self.elapsed += time.monotonic() - start
         print(res_str)
-
-    def get_func_name_tokens(self, func_name: str) -> List[int]:
-        func_name_tokens = self.llm.encode(func_name)
-        return (func_name_tokens[0].tolist())
+    #
+    # def get_func_name_tokens(self, func_name: str) -> List[int]:
+    #     func_name_tokens = self.llm.encode(func_name)
+    #     return (func_name_tokens[0].tolist())
     #
     # def get_param_name_tokens(self) -> List[int]:
     #     param_name_tokens = []
