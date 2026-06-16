@@ -65,7 +65,7 @@ class State(Enum):
 
 class GeneratorFSM():
     def __init__(self, functions: List[Function]) -> None:
-        self.max_tokens = 5
+        self.max_tokens = 15
         self.llm = Small_LLM_Model()
         self.func_trie = PrefixTrie()
         self.functions = functions
@@ -139,15 +139,16 @@ class GeneratorFSM():
         while len(generated) < self.max_tokens:
             logits = self.llm.get_logits_from_input_ids(self.input_ids)
             next_token = logits.index(max(logits))
-            print(next_token)
-            print(self.llm.decode([next_token]))
-            # if next_token == 27:
-            #     break
+            # print(f"Token: {next_token}")
+            # print(f"Decoded token: {self.llm.decode([next_token]).strip()}")
+            if "~" in self.llm.decode([next_token]):
+                self.input_ids.append(next_token)
+                break
             self.input_ids.append(next_token)
             generated.append(next_token)
 
         self.elapsed_time += time.monotonic() - start
-        return self.llm.decode(generated)
+        return self.llm.decode(generated).strip()
 
     def run(self, user_prompt: str) -> None:
         fixed_prompt = PromptBuilder()

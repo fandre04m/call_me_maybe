@@ -38,16 +38,16 @@ def main() -> None:
     except (PermissionError, OSError) as e:
         print(f"Error: file system - {e}")
 
-    # fsm = GeneratorFSM(file_loader.func_definitions)
+    fsm = GeneratorFSM(file_loader.func_definitions)
     try:
-        # for prompt in file_loader.prompts:
-        #     fsm.run(prompt.prompt)
+        for prompt in file_loader.prompts:
+            fsm.run(prompt.prompt)
         # fsm.run("What is my name?")
-        # fsm.run(file_loader.prompts[0].prompt)
-        llm = LLMHandler(file_loader.func_definitions)
-        llm.run_prompt(file_loader.prompts[0].prompt)
-        # print(f"Elapsed time: {fsm.elapsed_time:.2f}")
-        # print()
+        # fsm.run(file_loader.prompts[3].prompt)
+        # llm = LLMHandler(file_loader.func_definitions)
+        # llm.run_prompt(file_loader.prompts[0].prompt)
+            print(f"Elapsed time: {fsm.elapsed_time:.2f}")
+            print()
     except ValueError as e:
         print(f"Error: {e}")
 
