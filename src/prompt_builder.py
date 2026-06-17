@@ -1,63 +1,59 @@
 from src import Function
-from typing import List
+from typing import List, Dict
 
 
 class PromptBuilder:
-    def build(
+    def main_prompt(
         self,
         functions: List[Function],
     ) -> str:
-        prompt = [
+        prompt_lines = [
             "You are a function-calling assistant.",
             "Select one function and output its arguments.",
             "",
             "Functions:",
         ]
         for func in functions:
-            prompt.append(func.name)
-            for name, param in func.parameters.items():
-                prompt.append(f"{name} ({param.type})")
-        prompt.extend([
+            prompt_lines.append(f" {func.name}")
+            for name in func.parameters.keys():
+                prompt_lines.append(f"  {name}")
+        prompt_lines.extend([
             "",
-            "Output format (one block per argument, ~ as separator):",
+            "Output format:",
             "FUNCTION_NAME",
             "ARG_NAME",
-            "ARG_VALUE",
-            "~",
             "ARG_NAME",
-            "ARG_VALUE",
-            "~",
             "",
             "Example:",
             "Request: What is the sum of 8 and 9?",
             "fn_add_numbers",
             "a",
-            "8",
-            "~",
             "b",
-            "9",
-            "~",
-            # "",
-            # "Example:",
-            # "Request: Greet pedro",
-            # "fn_greet",
-            # "name",
-            # "pedro",
-            # "~",
-            # "",
-            # "Example:",
-            # "Request: Replace all vowels in 'hello world' with underscores.",
-            # "fn_substitute_string_with_regex",
-            # "source_string",
-            # "hello world",
-            # "~",
-            # "regex",
-            # "[^aeiou]",
-            # "~",
-            # "replacement",
-            # "_",
-            # "~",
             "",
             "Request: ",
         ])
-        return "\n".join(prompt)
+        return "\n".join(prompt_lines)
+
+    def value_prompt(
+        self,
+        user_request: str,
+        function: Function,
+        param_name: str,
+        already_filled: Dict[str, str]
+    ) -> str:
+        prompt_lines = [
+            "You are a tool to determine parameter values.",
+            "Select only one value for the desired parameter, nothing else.\n"
+            f" {user_request}",
+            f"Selected function: {function.name}",
+            "Required function parameters:"
+        ]
+        for name in function.parameters.keys():
+            prompt_lines.append(f"{name}")
+        if already_filled:
+            prompt_lines.append("\nParameter values already determined:")
+            for name, val in already_filled.items():
+                prompt_lines.append(f"{name} = {val}")
+        prompt_lines.append("\nNext value to determine:")
+        prompt_lines.append(f"{param_name} = ")
+        return "\n".join(prompt_lines)

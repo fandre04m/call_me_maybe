@@ -43,7 +43,7 @@ def main() -> None:
         for prompt in file_loader.prompts:
             fsm.run(prompt.prompt)
         # fsm.run("What is my name?")
-        # fsm.run(file_loader.prompts[3].prompt)
+        # fsm.run(file_loader.prompts[1].prompt)
         # llm = LLMHandler(file_loader.func_definitions)
         # llm.run_prompt(file_loader.prompts[0].prompt)
             print(f"Elapsed time: {fsm.elapsed_time:.2f}")

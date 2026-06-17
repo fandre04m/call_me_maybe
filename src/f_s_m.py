@@ -89,7 +89,7 @@ class GeneratorFSM():
                 logits[token_id] = float("-inf")
         return logits
 
-    def gen_func_name(self, prompt: str) -> str:
+    def _gen_func_name(self, prompt: str) -> str:
         generated: List[int] = []
 
         start = time.monotonic()
@@ -111,7 +111,7 @@ class GeneratorFSM():
         self.elapsed_time += time.monotonic() - start
         return self.llm.decode(generated)
 
-    def gen_param_name(self) -> str:
+    def _gen_param_name(self) -> str:
         param_trie = PrefixTrie()
 
         for param in self.remaining_params:
@@ -132,55 +132,59 @@ class GeneratorFSM():
         self.remaining_params.remove(self.llm.decode(generated))
         return self.llm.decode(generated)
 
-    def gen_param_val(self) -> str:
+    def _gen_param_value(self, value_prompt: str) -> str:
         generated = []
 
         start = time.monotonic()
+        self.input_ids = self.llm.encode(value_prompt)[0].tolist()
         while len(generated) < self.max_tokens:
             logits = self.llm.get_logits_from_input_ids(self.input_ids)
             next_token = logits.index(max(logits))
             # print(f"Token: {next_token}")
             # print(f"Decoded token: {self.llm.decode([next_token]).strip()}")
-            if "~" in self.llm.decode([next_token]):
-                self.input_ids.append(next_token)
-                break
             self.input_ids.append(next_token)
             generated.append(next_token)
+            if "\n" in self.llm.decode(generated).lstrip("\n"):
+                break
 
         self.elapsed_time += time.monotonic() - start
         return self.llm.decode(generated).strip()
 
     def run(self, user_prompt: str) -> None:
-        fixed_prompt = PromptBuilder()
-        prompt = fixed_prompt.build(self.functions) + user_prompt
         print(user_prompt)
+        func_name = ""
 
-        func_name = self.gen_func_name(prompt)
-        print(func_name)
-        self.state = State.SELECT_PARAM
+        self.state = State.SELECT_FUNCTION
+        prompt = PromptBuilder()
+        if self.state == State.SELECT_FUNCTION:
+            main_prompt = prompt.main_prompt(self.functions) + user_prompt
 
-        for func in self.functions:
-            if func.name == func_name:
-                self.curr_func = func
-                self.remaining_params = list(func.parameters.keys())
+            func_name = self._gen_func_name(main_prompt)
+            print(func_name)
 
-        while self.remaining_params:
-            param_name = self.gen_param_name()
-            print(param_name)
-            self.state = State.SELECT_VALUE
-            # param_type = self.curr_func.parameters[param_name].type
-            # print(param_type)
-            param_value = self.gen_param_val()
-            print(param_value)
-            # if param_type == "number" or param_type == "float":
-            #     pass
-            # elif param_type == "string":
-            #     pass
-            # else:
-            #     raise ValueError(
-            #         "Invalid parameter type."
-            #     )
-        self.state = State.SELECT_PARAM
+            for func in self.functions:
+                if func.name == func_name:
+                    self.curr_func = func
+                    self.remaining_params = list(func.parameters.keys())
 
-        if not self.remaining_params:
-            self.state = State.DONE
+            self.state = State.SELECT_PARAM
+
+        if self.state == State.SELECT_PARAM:
+            while self.remaining_params:
+                param_name = self._gen_param_name()
+                print(param_name)
+                self.state = State.SELECT_VALUE
+                filled: Dict[str, str] = {}
+                val_prompt = prompt.value_prompt(
+                    user_prompt,
+                    self.curr_func,
+                    param_name,
+                    filled
+                )
+                param_val = self._gen_param_value(val_prompt)
+                print(param_val)
+                filled[param_name] = param_val
+                if not self.remaining_params:
+                    self.state = State.DONE
+                else:
+                    self.state = State.SELECT_PARAM
