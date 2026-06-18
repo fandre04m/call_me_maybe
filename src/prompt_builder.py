@@ -39,21 +39,23 @@ class PromptBuilder:
         user_request: str,
         function: Function,
         param_name: str,
-        already_filled: Dict[str, str]
+        already_filled: Dict[str, str],
+        candidates: List[str] | None
     ) -> str:
         prompt_lines = [
             "You are a tool to determine parameter values.",
-            "Select only one value for the desired parameter, nothing else.\n"
-            f" {user_request}",
+            f"\n {user_request}",
             f"Selected function: {function.name}",
             "Required function parameters:"
         ]
-        for name in function.parameters.keys():
-            prompt_lines.append(f"{name}")
+        for name, p_type in function.parameters.items():
+            prompt_lines.append(f"{name} ({p_type.type})")
         if already_filled:
             prompt_lines.append("\nParameter values already determined:")
             for name, val in already_filled.items():
                 prompt_lines.append(f"{name} = {val}")
-        prompt_lines.append("\nNext value to determine:")
-        prompt_lines.append(f"{param_name} = ")
+        if candidates:
+            prompt_lines.append(f"Possible values for {param_name}:")
+            prompt_lines.append(", ".join(candidates))
+        prompt_lines.append(f"\nValue for {param_name} = ")
         return "\n".join(prompt_lines)

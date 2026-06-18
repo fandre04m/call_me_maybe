@@ -141,7 +141,7 @@ class GeneratorFSM():
         opt_trie = PrefixTrie()
         generated: List[int] = []
 
-        if options and not param == "regex" and not param == "replacement":
+        if options and not param == "regex":
             for s in options:
                 token_ids = self.llm.encode(s)[0].tolist()
                 opt_trie.insert(token_ids, s)
@@ -164,8 +164,6 @@ class GeneratorFSM():
             while len(generated) < self.max_tokens:
                 logits = self.llm.get_logits_from_input_ids(self.input_ids)
                 next_token = logits.index(max(logits))
-                # print(f"Token: {next_token}")
-                # print(f"Decoded token: {self.llm.decode([next_token]).strip()}")
                 self.input_ids.append(next_token)
                 generated.append(next_token)
                 if "\n" in self.llm.decode(generated).lstrip("\n"):
@@ -212,7 +210,8 @@ class GeneratorFSM():
                     user_prompt,
                     self.curr_func,
                     param_name,
-                    filled
+                    filled,
+                    options
                 )
                 param_val = self._gen_param_value(
                     val_prompt,
