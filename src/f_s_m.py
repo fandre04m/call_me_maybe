@@ -132,30 +132,56 @@ class GeneratorFSM():
         self.remaining_params.remove(self.llm.decode(generated))
         return self.llm.decode(generated)
 
-    def _gen_param_value(self, value_prompt: str) -> str:
-        generated = []
+    def _gen_param_value(
+        self,
+        value_prompt: str,
+        options: List[str] | None,
+        param: str
+    ) -> str:
+        opt_trie = PrefixTrie()
+        generated: List[int] = []
 
-        start = time.monotonic()
-        self.input_ids = self.llm.encode(value_prompt)[0].tolist()
-        while len(generated) < self.max_tokens:
-            logits = self.llm.get_logits_from_input_ids(self.input_ids)
-            next_token = logits.index(max(logits))
-            # print(f"Token: {next_token}")
-            # print(f"Decoded token: {self.llm.decode([next_token]).strip()}")
-            self.input_ids.append(next_token)
-            generated.append(next_token)
-            if "\n" in self.llm.decode(generated).lstrip("\n"):
-                break
+        if options and not param == "regex" and not param == "replacement":
+            for s in options:
+                token_ids = self.llm.encode(s)[0].tolist()
+                opt_trie.insert(token_ids, s)
 
-        self.elapsed_time += time.monotonic() - start
-        return self.llm.decode(generated).strip()
+            start = time.monotonic()
+            while not opt_trie.is_complete(generated):
+                allowed = opt_trie.allowed_tokens(generated)
+                logits = self.llm.get_logits_from_input_ids(self.input_ids)
+                masked_logits = self._mask_logits(logits, allowed)
+                next_token = masked_logits.index(max(masked_logits))
+                self.input_ids.append(next_token)
+                generated.append(next_token)
+
+            self.elapsed_time += time.monotonic() - start
+            return self.llm.decode(generated)
+
+        else:
+            start = time.monotonic()
+            self.input_ids = self.llm.encode(value_prompt)[0].tolist()
+            while len(generated) < self.max_tokens:
+                logits = self.llm.get_logits_from_input_ids(self.input_ids)
+                next_token = logits.index(max(logits))
+                # print(f"Token: {next_token}")
+                # print(f"Decoded token: {self.llm.decode([next_token]).strip()}")
+                self.input_ids.append(next_token)
+                generated.append(next_token)
+                if "\n" in self.llm.decode(generated).lstrip("\n"):
+                    break
+
+            self.elapsed_time += time.monotonic() - start
+            return self.llm.decode(generated).strip()
 
     def run(self, user_prompt: str) -> None:
         print(user_prompt)
         func_name = ""
 
         self.state = State.SELECT_FUNCTION
+
         prompt = PromptBuilder()
+
         if self.state == State.SELECT_FUNCTION:
             main_prompt = prompt.main_prompt(self.functions) + user_prompt
 
@@ -173,7 +199,14 @@ class GeneratorFSM():
             while self.remaining_params:
                 param_name = self._gen_param_name()
                 print(param_name)
+                param_type = self.curr_func.parameters[param_name].type
+
                 self.state = State.SELECT_VALUE
+
+                from src import extract_strings
+                options = []
+                if param_type == "string":
+                    options = extract_strings(user_prompt)
                 filled: Dict[str, str] = {}
                 val_prompt = prompt.value_prompt(
                     user_prompt,
@@ -181,7 +214,11 @@ class GeneratorFSM():
                     param_name,
                     filled
                 )
-                param_val = self._gen_param_value(val_prompt)
+                param_val = self._gen_param_value(
+                    val_prompt,
+                    options,
+                    param_name
+                )
                 print(param_val)
                 filled[param_name] = param_val
                 if not self.remaining_params:
