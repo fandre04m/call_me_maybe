@@ -4,7 +4,7 @@ import re
 NOT_NEEDED = [
     "greet", "reverse", "the", "of", "it", "is", "square", "root",
     "in", "replace", "substitute", "calculate", "all",
-    "with", "string", "word"
+    "with", "string", "word",
 ]
 
 

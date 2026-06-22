@@ -39,23 +39,30 @@ class PromptBuilder:
         user_request: str,
         function: Function,
         param_name: str,
+        param_type: str,
         already_filled: Dict[str, str],
-        candidates: List[str] | None
+        options: List[str] | None
     ) -> str:
         prompt_lines = [
-            "You are a tool to determine parameter values.",
-            f"\n {user_request}",
-            f"Selected function: {function.name}",
-            "Required function parameters:"
+            "You are a tool to determine parameter values for a function.",
+            "The values needed are based on the user request.",
+            # "You can only select ONE value."
+            f"\nSelected function:\n{function.name}: {function.description}",
+            "Parameters and their type:",
         ]
         for name, p_type in function.parameters.items():
-            prompt_lines.append(f"{name} ({p_type.type})")
-        if already_filled:
-            prompt_lines.append("\nParameter values already determined:")
-            for name, val in already_filled.items():
-                prompt_lines.append(f"{name} = {val}")
-        if candidates:
-            prompt_lines.append(f"Possible values for {param_name}:")
-            prompt_lines.append(", ".join(candidates))
-        prompt_lines.append(f"\nValue for {param_name} = ")
+            if name in already_filled:
+                prompt_lines.append(f"{name} ({p_type.type}) = {already_filled[name]}")
+            else:
+                prompt_lines.append(f"{name} ({p_type.type}) =")
+        # if already_filled:
+        #     prompt_lines.append("\nParameter already determined:")
+        #     for name, val in already_filled.items():
+        #         prompt_lines.append(f"{name} = {val}")
+        # if options:
+        #     prompt_lines.append(f"Possible values for {param_name}:")
+        #     for opt in options:
+        #         prompt_lines.append(opt)
+        prompt_lines.append(f"\nUser request: {user_request}")
+        prompt_lines.append(f"{param_name} ({param_type}) = ")
         return "\n".join(prompt_lines)
