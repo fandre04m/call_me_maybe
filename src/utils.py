@@ -2,13 +2,19 @@ from typing import List
 import re
 
 NOT_NEEDED = [
-    "greet", "reverse", "the", "of", "it", "is", "square", "root",
-    "in", "replace", "substitute", "calculate", "all",
-    "with", "string", "word",
+    "all", "with", "in", "on", "at", "the", "a", "an",
+    "and", "or", "of", "to", "for", "by", "is", "are", "be",
+    "every", "each", "using", "use",
+    "where", "that", "this", "it", "its"
 ]
 
 
-def extract_strings(prompt: str) -> List[str] | None:
+def filter_func_name(name: str, options: List[str]) -> List[str]:
+    words = name.split("_")
+    return [s for s in options if s.lower() not in words]
+
+
+def extract_strings(prompt: str) -> List[str]:
     opts = []
 
     quoted = [m[1] for m in re.findall(r'(["\'])(.*?)\1', prompt)]

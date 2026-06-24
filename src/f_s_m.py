@@ -1,8 +1,11 @@
 from typing import Dict, List, Set
 from enum import Enum
 from llm_sdk import Small_LLM_Model
-from src import Function, PromptBuilder
+from .file_handling import Function
+from .prompt_builder import PromptBuilder
+from .utils import extract_strings, filter_func_name
 import time
+import json
 
 
 class TrieNode():
@@ -79,6 +82,15 @@ class GeneratorFSM():
             token_ids = self.llm.encode(func.name)[0].tolist()
             self.func_trie.insert(token_ids, func.name)
 
+    def _extract_regex_tokens(self) -> List[int]:
+        vocab_path = self.llm.get_path_to_vocab_file()
+        with open(vocab_path, "r", encoding="utf-8") as f:
+            vocab = json.load(f)
+        items = list(vocab.items())
+        for token_str, token_id in items[50:100]:
+            print(repr(token_str), token_id)
+        return []
+
     def _mask_logits(
         self,
         logits: List[float],
@@ -115,7 +127,6 @@ class GeneratorFSM():
         param_trie = PrefixTrie()
 
         next_param = self.remaining_params[0]
-        # for param in self.remaining_params:
         token_ids = self.llm.encode(next_param)[0].tolist()
         param_trie.insert(token_ids, next_param)
 
@@ -136,13 +147,12 @@ class GeneratorFSM():
     def _gen_param_value(
         self,
         value_prompt: str,
-        options: List[str] | None,
-        param: str
+        options: List[str],
     ) -> str:
         opt_trie = PrefixTrie()
         generated: List[int] = []
 
-        if options and not param == "regex":
+        if options:
             for s in options:
                 token_ids = self.llm.encode(s)[0].tolist()
                 opt_trie.insert(token_ids, s)
@@ -174,6 +184,7 @@ class GeneratorFSM():
         return self.llm.decode(generated).strip()
 
     def run(self, user_prompt: str) -> None:
+        self._extract_regex_tokens()
         print(user_prompt)
         func_name = ""
 
@@ -203,23 +214,22 @@ class GeneratorFSM():
 
                 self.state = State.SELECT_VALUE
 
-                from src import extract_strings
                 options = []
-                if param_type == "string":
+                if param_type == "string" and not param_name == "regex":
                     options = extract_strings(user_prompt)
+                clean_opts = filter_func_name(func_name, options)
+
                 val_prompt = prompt.value_prompt(
                     user_prompt,
                     self.curr_func,
                     param_name,
                     param_type,
                     filled,
-                    options
                 )
-                # print(f"\n{val_prompt}\n")
+                # print(f"\n{val_prompt}\n\n\n")
                 param_val = self._gen_param_value(
                     val_prompt,
-                    options,
-                    param_name
+                    clean_opts,
                 )
                 # print(f"Options: {options}")
                 print(param_val)

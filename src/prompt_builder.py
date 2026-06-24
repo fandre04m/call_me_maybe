@@ -1,4 +1,4 @@
-from src import Function
+from .file_handling import Function
 from typing import List, Dict
 
 
@@ -41,28 +41,30 @@ class PromptBuilder:
         param_name: str,
         param_type: str,
         already_filled: Dict[str, str],
-        options: List[str] | None
     ) -> str:
         prompt_lines = [
             "You are a tool to determine parameter values for a function.",
             "The values needed are based on the user request.",
-            # "You can only select ONE value."
             f"\nSelected function:\n{function.name}: {function.description}",
             "Parameters and their type:",
         ]
         for name, p_type in function.parameters.items():
             if name in already_filled:
-                prompt_lines.append(f"{name} ({p_type.type}) = {already_filled[name]}")
+                prompt_lines.append(
+                    f"{name} ({p_type.type}) = {already_filled[name]}"
+                )
             else:
                 prompt_lines.append(f"{name} ({p_type.type}) =")
-        # if already_filled:
-        #     prompt_lines.append("\nParameter already determined:")
-        #     for name, val in already_filled.items():
-        #         prompt_lines.append(f"{name} = {val}")
-        # if options:
-        #     prompt_lines.append(f"Possible values for {param_name}:")
-        #     for opt in options:
-        #         prompt_lines.append(opt)
         prompt_lines.append(f"\nUser request: {user_request}")
-        prompt_lines.append(f"{param_name} ({param_type}) = ")
+        if param_name == "replacement":
+            prompt_lines.append(
+                "\nSelect in the request something that could be the "
+                "replacement. Prefer something really short, "
+                "like a single word."
+            )
+        if param_name == "regex":
+            prompt_lines.append(
+                "\nOutput a valid Regular Expression."
+            )
+        prompt_lines.append(f"\n{param_name} ({param_type}) = ")
         return "\n".join(prompt_lines)
