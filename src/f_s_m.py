@@ -3,7 +3,11 @@ from enum import Enum
 from llm_sdk import Small_LLM_Model
 from .file_handling import Function
 from .prompt_builder import PromptBuilder
-from .utils import extract_strings, filter_func_name
+from .utils import (
+    extract_strings,
+    extract_numbers,
+    filter_func_name
+)
 import time
 import json
 
@@ -184,7 +188,7 @@ class GeneratorFSM():
         return self.llm.decode(generated).strip()
 
     def run(self, user_prompt: str) -> None:
-        self._extract_regex_tokens()
+        # self._extract_regex_tokens()
         print(user_prompt)
         func_name = ""
 
@@ -193,13 +197,13 @@ class GeneratorFSM():
         prompt = PromptBuilder()
 
         if self.state == State.SELECT_FUNCTION:
-            main_prompt = prompt.main_prompt(self.functions) + user_prompt
+            func_prompt = prompt.main_prompt(self.functions, user_prompt)
 
-            func_name = self._gen_func_name(main_prompt)
+            func_name = self._gen_func_name(func_prompt)
             print(func_name)
 
             for func in self.functions:
-                if func.name == func_name:
+                if func_name == func.name:
                     self.curr_func = func
                     self.remaining_params = list(func.parameters.keys())
 
@@ -214,10 +218,13 @@ class GeneratorFSM():
 
                 self.state = State.SELECT_VALUE
 
-                options = []
-                if param_type == "string" and not param_name == "regex":
+                clean_opts = []
+                if param_type == "string" and not param_name == "regex" and not param_name == "replacement":
                     options = extract_strings(user_prompt)
-                clean_opts = filter_func_name(func_name, options)
+                    clean_opts = filter_func_name(func_name, options)
+
+                if param_type == "number":
+                    clean_opts = extract_numbers(user_prompt)
 
                 val_prompt = prompt.value_prompt(
                     user_prompt,

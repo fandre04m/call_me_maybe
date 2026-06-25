@@ -17,7 +17,7 @@ def filter_func_name(name: str, options: List[str]) -> List[str]:
 def extract_strings(prompt: str) -> List[str]:
     opts = []
 
-    quoted = [m[1] for m in re.findall(r'(["\'])(.*?)\1', prompt)]
+    quoted = [s[1] for s in re.findall(r'(["\'])(.*?)\1', prompt)]
     if quoted:
         opts.extend(quoted)
 
@@ -28,3 +28,21 @@ def extract_strings(prompt: str) -> List[str]:
     filtered = [s for s in opts if s.lower() not in NOT_NEEDED]
 
     return filtered
+
+
+def extract_numbers(prompt: str) -> List[str]:
+    opts = []
+
+    nums = re.findall(r'\d+', prompt)
+    if nums:
+        opts.extend(nums)
+
+    return nums
+#
+#
+# def main() -> None:
+#     nums_str = extract_numbers("What is the sum of 2 and 3?")
+#     print(nums_str)
+#
+#
+# main()
