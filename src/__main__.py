@@ -38,12 +38,12 @@ def main() -> None:
 
     fsm = GeneratorFSM(file_loader.func_definitions)
     try:
-        # for prompt in file_loader.prompts:
-        #     fsm.run(prompt.prompt)
+        for prompt in file_loader.prompts:
+            fsm.run(prompt.prompt)
         # fsm.run("What is my name?")
-        fsm.run(file_loader.prompts[8].prompt)
-        print(f"Elapsed time: {fsm.elapsed_time:.2f}")
-        print()
+        # fsm.run(file_loader.prompts[8].prompt)
+            print(f"Elapsed time: {fsm.elapsed_time:.2f}")
+            print()
     except ValueError as e:
         print(f"Error: {e}")
 

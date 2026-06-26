@@ -9,7 +9,6 @@ from .utils import (
     filter_func_name
 )
 import time
-import json
 
 
 class TrieNode():
@@ -83,17 +82,8 @@ class GeneratorFSM():
         self.input_ids = []
 
         for func in functions:
-            token_ids = self.llm.encode(func.name)[0].tolist()
-            self.func_trie.insert(token_ids, func.name)
-
-    def _extract_regex_tokens(self) -> List[int]:
-        vocab_path = self.llm.get_path_to_vocab_file()
-        with open(vocab_path, "r", encoding="utf-8") as f:
-            vocab = json.load(f)
-        items = list(vocab.items())
-        for token_str, token_id in items[50:100]:
-            print(repr(token_str), token_id)
-        return []
+            token_ids = self.llm.encode(func.name + "\n")[0].tolist()
+            self.func_trie.insert(token_ids, func.name + "\n")
 
     def _mask_logits(
         self,
@@ -125,14 +115,14 @@ class GeneratorFSM():
             )
 
         self.elapsed_time += time.monotonic() - start
-        return self.llm.decode(generated)
+        return self.llm.decode(generated).strip()
 
     def _gen_param_name(self) -> str:
         param_trie = PrefixTrie()
 
         next_param = self.remaining_params[0]
-        token_ids = self.llm.encode(next_param)[0].tolist()
-        param_trie.insert(token_ids, next_param)
+        token_ids = self.llm.encode(next_param + "\n")[0].tolist()
+        param_trie.insert(token_ids, next_param + "\n")
 
         generated: List[int] = []
         start = time.monotonic()
@@ -146,58 +136,32 @@ class GeneratorFSM():
 
         self.elapsed_time += time.monotonic() - start
         self.remaining_params.remove(next_param)
-        return self.llm.decode(generated)
+        return self.llm.decode(generated).strip()
 
-    def _gen_param_value(
-        self,
-        value_prompt: str,
-        options: List[str],
-    ) -> str:
-        opt_trie = PrefixTrie()
+    def _gen_param_value(self) -> str:
         generated: List[int] = []
 
-        if options:
-            for s in options:
-                token_ids = self.llm.encode(s)[0].tolist()
-                opt_trie.insert(token_ids, s)
-
-            start = time.monotonic()
-            self.input_ids = self.llm.encode(value_prompt)[0].tolist()
-            while not opt_trie.is_complete(generated):
-                allowed = opt_trie.allowed_tokens(generated)
-                logits = self.llm.get_logits_from_input_ids(self.input_ids)
-                masked_logits = self._mask_logits(logits, allowed)
-                next_token = masked_logits.index(max(masked_logits))
-                self.input_ids.append(next_token)
-                generated.append(next_token)
-
-            self.elapsed_time += time.monotonic() - start
-            return self.llm.decode(generated)
-
         start = time.monotonic()
-        self.input_ids = self.llm.encode(value_prompt)[0].tolist()
         while len(generated) < self.max_tokens:
             logits = self.llm.get_logits_from_input_ids(self.input_ids)
             next_token = logits.index(max(logits))
             self.input_ids.append(next_token)
             generated.append(next_token)
-            if "\n" in self.llm.decode(generated).lstrip("\n"):
+            if "\n" in self.llm.decode(generated):
                 break
 
         self.elapsed_time += time.monotonic() - start
         return self.llm.decode(generated).strip()
 
     def run(self, user_prompt: str) -> None:
-        # self._extract_regex_tokens()
         print(user_prompt)
+
         func_name = ""
-
         self.state = State.SELECT_FUNCTION
-
         prompt = PromptBuilder()
 
         if self.state == State.SELECT_FUNCTION:
-            func_prompt = prompt.main_prompt(self.functions, user_prompt)
+            func_prompt = prompt.sys_prompt(self.functions, user_prompt)
 
             func_name = self._gen_func_name(func_prompt)
             print(func_name)
@@ -209,38 +173,15 @@ class GeneratorFSM():
 
             self.state = State.SELECT_PARAM
 
-        filled: Dict[str, str] = {}
         if self.state == State.SELECT_PARAM:
             while self.remaining_params:
                 param_name = self._gen_param_name()
                 print(param_name)
-                param_type = self.curr_func.parameters[param_name].type
 
                 self.state = State.SELECT_VALUE
 
-                clean_opts = []
-                if param_type == "string" and not param_name == "regex" and not param_name == "replacement":
-                    options = extract_strings(user_prompt)
-                    clean_opts = filter_func_name(func_name, options)
-
-                if param_type == "number":
-                    clean_opts = extract_numbers(user_prompt)
-
-                val_prompt = prompt.value_prompt(
-                    user_prompt,
-                    self.curr_func,
-                    param_name,
-                    param_type,
-                    filled,
-                )
-                # print(f"\n{val_prompt}\n\n\n")
-                param_val = self._gen_param_value(
-                    val_prompt,
-                    clean_opts,
-                )
-                # print(f"Options: {options}")
+                param_val = self._gen_param_value()
                 print(param_val)
-                filled[param_name] = param_val
                 if not self.remaining_params:
                     self.state = State.DONE
                 else:
