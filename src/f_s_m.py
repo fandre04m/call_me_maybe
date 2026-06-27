@@ -3,12 +3,8 @@ from enum import Enum
 from llm_sdk import Small_LLM_Model
 from .file_handling import Function
 from .prompt_builder import PromptBuilder
-from .utils import (
-    extract_strings,
-    extract_numbers,
-    filter_func_name
-)
 import time
+import json
 
 
 class TrieNode():
@@ -21,13 +17,13 @@ class PrefixTrie():
     def __init__(self) -> None:
         self.root = TrieNode()
 
-    def insert(self, name_ids: List[int], name: str) -> None:
+    def insert(self, token_ids: List[int], name: str) -> None:
         current = self.root
 
-        for token_id in name_ids:
-            if token_id not in current.children:
-                current.children[token_id] = TrieNode()
-            current = current.children[token_id]
+        for t_id in token_ids:
+            if t_id not in current.children:
+                current.children[t_id] = TrieNode()
+            current = current.children[t_id]
 
         current.name = name
 
@@ -71,19 +67,56 @@ class State(Enum):
 
 class GeneratorFSM():
     def __init__(self, functions: List[Function]) -> None:
-        self.max_tokens = 15
         self.llm = Small_LLM_Model()
-        self.func_trie = PrefixTrie()
         self.functions = functions
+        self.max_tokens = 15
         self.elapsed_time: float = 0.0
         self.state = State.SELECT_FUNCTION
         self.curr_func: Function
         self.remaining_params = []
         self.input_ids = []
+        self.vocab_file: Dict[str, int] = self._get_vocab()
+        self.str_allowed: Set[int] = self._make_mask(
+            to_forbid="\""
+        )
+        self.num_allowed: Set[int] = self._make_mask(
+            to_allow="0123456789-.\n"
+        )
 
-        for func in functions:
-            token_ids = self.llm.encode(func.name + "\n")[0].tolist()
-            self.func_trie.insert(token_ids, func.name + "\n")
+    def _get_vocab(self) -> Dict[str, int]:
+        path = self.llm.get_path_to_vocab_file()
+        with open(path, "r", encoding="utf-8") as f:
+            vocab = json.load(f)
+
+        return vocab
+
+    def _add_to_trie(self, trie: PrefixTrie, to_encode: str) -> None:
+        token_ids = self.llm.encode(to_encode + "\n")[0].tolist()
+        trie.insert(token_ids, to_encode + "\n")
+
+    def _make_mask(
+        self,
+        *,
+        to_allow: str = "",
+        to_forbid: str = ""
+    ) -> Set[int]:
+        allowed = []
+
+        allow_set = set(to_allow)
+        forbid_set = set(to_forbid)
+
+        for t_id in self.vocab_file.values():
+            t_text = self.llm.decode([t_id])
+
+            if allow_set:
+                if all(c in allow_set for c in t_text):
+                    allowed.append(t_id)
+
+            elif forbid_set:
+                if all(c not in t_text for c in forbid_set):
+                    allowed.append(t_id)
+
+        return set(allowed)
 
     def _mask_logits(
         self,
@@ -96,20 +129,23 @@ class GeneratorFSM():
         return logits
 
     def _gen_func_name(self, prompt: str) -> str:
+        prefix_trie = PrefixTrie()
+        for func in self.functions:
+            self._add_to_trie(prefix_trie, func.name)
+
         generated: List[int] = []
 
         start = time.monotonic()
         self.input_ids = self.llm.encode(prompt)[0].tolist()
-
-        while not self.func_trie.is_complete(generated):
-            allowed = self.func_trie.allowed_tokens(generated)
+        while not prefix_trie.is_complete(generated):
+            allowed = prefix_trie.allowed_tokens(generated)
             logits = self.llm.get_logits_from_input_ids(self.input_ids)
             masked_logits = self._mask_logits(logits, allowed)
             next_token = masked_logits.index(max(masked_logits))
             self.input_ids.append(next_token)
             generated.append(next_token)
 
-        if self.func_trie.get_name(generated) == "fn_no_match":
+        if prefix_trie.get_name(generated) == "fn_no_match":
             raise ValueError(
                 "Could not find a valid function for the prompt."
             )
@@ -118,16 +154,15 @@ class GeneratorFSM():
         return self.llm.decode(generated).strip()
 
     def _gen_param_name(self) -> str:
-        param_trie = PrefixTrie()
+        prefix_trie = PrefixTrie()
 
         next_param = self.remaining_params[0]
-        token_ids = self.llm.encode(next_param + "\n")[0].tolist()
-        param_trie.insert(token_ids, next_param + "\n")
+        self._add_to_trie(prefix_trie, next_param)
 
         generated: List[int] = []
         start = time.monotonic()
-        while not param_trie.is_complete(generated):
-            allowed = param_trie.allowed_tokens(generated)
+        while not prefix_trie.is_complete(generated):
+            allowed = prefix_trie.allowed_tokens(generated)
             logits = self.llm.get_logits_from_input_ids(self.input_ids)
             masked_logits = self._mask_logits(logits, allowed)
             next_token = masked_logits.index(max(masked_logits))
@@ -138,13 +173,19 @@ class GeneratorFSM():
         self.remaining_params.remove(next_param)
         return self.llm.decode(generated).strip()
 
-    def _gen_param_value(self) -> str:
-        generated: List[int] = []
+    def _gen_param_value(self, p_type: str) -> str:
+        allowed = set()
+        if p_type == "string":
+            allowed = self.str_allowed
+        if p_type == "number":
+            allowed = self.num_allowed
 
+        generated: List[int] = []
         start = time.monotonic()
         while len(generated) < self.max_tokens:
             logits = self.llm.get_logits_from_input_ids(self.input_ids)
-            next_token = logits.index(max(logits))
+            masked_logits = self._mask_logits(logits, allowed)
+            next_token = masked_logits.index(max(masked_logits))
             self.input_ids.append(next_token)
             generated.append(next_token)
             if "\n" in self.llm.decode(generated):
@@ -161,9 +202,9 @@ class GeneratorFSM():
         prompt = PromptBuilder()
 
         if self.state == State.SELECT_FUNCTION:
-            func_prompt = prompt.sys_prompt(self.functions, user_prompt)
+            prompt = prompt.sys_prompt(self.functions, user_prompt)
 
-            func_name = self._gen_func_name(func_prompt)
+            func_name = self._gen_func_name(prompt)
             print(func_name)
 
             for func in self.functions:
@@ -175,12 +216,13 @@ class GeneratorFSM():
 
         if self.state == State.SELECT_PARAM:
             while self.remaining_params:
-                param_name = self._gen_param_name()
-                print(param_name)
+                p_name = self._gen_param_name()
+                p_type = self.curr_func.parameters[p_name].type
+                print(p_name)
 
                 self.state = State.SELECT_VALUE
 
-                param_val = self._gen_param_value()
+                param_val = self._gen_param_value(p_type)
                 print(param_val)
                 if not self.remaining_params:
                     self.state = State.DONE
