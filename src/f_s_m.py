@@ -69,7 +69,7 @@ class GeneratorFSM():
     def __init__(self, functions: List[Function]) -> None:
         self.llm = Small_LLM_Model()
         self.functions = functions
-        self.max_tokens = 15
+        self.max_tokens = 20
         self.elapsed_time: float = 0.0
         self.state = State.SELECT_FUNCTION
         self.curr_func: Function
