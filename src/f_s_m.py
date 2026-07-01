@@ -3,6 +3,7 @@ from enum import Enum
 from llm_sdk import Small_LLM_Model
 from .file_handling import Function
 from .prompt_builder import PromptBuilder
+from .utils import convert_to_float, convert_to_int
 import time
 import json
 
@@ -81,6 +82,9 @@ class GeneratorFSM():
         )
         self.num_allowed: Set[int] = self._make_mask(
             to_allow="0123456789-.\n"
+        )
+        self.int_allowed: Set[int] = self._make_mask(
+            to_allow="0123456789-\n"
         )
 
     def _get_vocab(self) -> Dict[str, int]:
@@ -179,6 +183,8 @@ class GeneratorFSM():
             allowed = self.str_allowed
         if p_type == "number":
             allowed = self.num_allowed
+        if p_type == "integer":
+            allowed = self.int_allowed
 
         generated: List[int] = []
         start = time.monotonic()
@@ -195,7 +201,7 @@ class GeneratorFSM():
         return self.llm.decode(generated).strip()
 
     def run(self, user_prompt: str) -> None:
-        print(user_prompt)
+        print(f"User prompt: {user_prompt}")
 
         func_name = ""
         self.state = State.SELECT_FUNCTION
@@ -205,7 +211,7 @@ class GeneratorFSM():
             prompt = prompt.sys_prompt(self.functions, user_prompt)
 
             func_name = self._gen_func_name(prompt)
-            print(func_name)
+            print(f"Function: {func_name}\nParameters:")
 
             for func in self.functions:
                 if func_name == func.name:
@@ -214,17 +220,25 @@ class GeneratorFSM():
 
             self.state = State.SELECT_PARAM
 
+        params = {}
         if self.state == State.SELECT_PARAM:
             while self.remaining_params:
                 p_name = self._gen_param_name()
                 p_type = self.curr_func.parameters[p_name].type
-                print(p_name)
 
                 self.state = State.SELECT_VALUE
 
-                param_val = self._gen_param_value(p_type)
-                print(param_val)
+                p_value = self._gen_param_value(p_type)
+                print(f" - {p_name}: {p_value}")
+                if p_type == "number":
+                    p_value = convert_to_float(p_value)
+                if p_type == "integer":
+                    p_value = convert_to_int(p_value)
+                params[p_name] = p_value
                 if not self.remaining_params:
                     self.state = State.DONE
                 else:
                     self.state = State.SELECT_PARAM
+
+        if self.state == State.DONE:
+            print(params)

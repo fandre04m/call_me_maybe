@@ -10,34 +10,25 @@ class PromptBuilder:
     ) -> str:
         prompt = [
             "Select one function that fullfils the request.\n",
-            # "Remove any quotes from words in the answer.",
             "\nAvailable functions:",
         ]
         for func in functions:
             prompt.append(f"Function: {func.name}")
-            prompt.append(f"Function purpose: {func.description}")
+            prompt.append(f"Description: {func.description}")
             prompt.append("Arguments:")
             for p_name, p_type in func.parameters.items():
                 prompt.append(f" {p_name} ({p_type.type})")
         prompt.extend([
-            # "\nRequired format:",
-            # "fn_function_name",
-            # "arg_name",
-            # "arg_value",
-            # "arg_name",
-            # "arg_value",
-            # "...",
-            "\nExamples:",
-            "What is the sum of 4 and 7?",
-            "fn_add_numbers",
-            "a",
-            "4",
-            "b",
-            "7",
-            "\nReverse the word 'crying'",
-            "fn_reverse_string",
-            "s",
-            "crying",
+            "\nExample:",
+            "Substitute the words 'test' in 'The test is actually just "
+            "a test' with 'joke'."
+            "fn_substitute_string_with_regex",
+            "source_string",
+            "The test is actually just a test",
+            "regex",
+            "test",
+            "replacement",
+            "joke",
             f"\nRequest: {user_request}"
         ])
         return "\n".join(prompt)

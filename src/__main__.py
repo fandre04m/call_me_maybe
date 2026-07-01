@@ -40,7 +40,7 @@ def main() -> None:
     try:
         for prompt in file_loader.prompts:
             fsm.run(prompt.prompt)
-        # fsm.run("testing needed' with zeros.")
+        # fsm.run("Replace all vowels in 'PrOgrAmIng Is fUn' with asterisks")
         # fsm.run(file_loader.prompts[8].prompt)
             print(f"Elapsed time: {fsm.elapsed_time:.2f}")
             print()
