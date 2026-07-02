@@ -1,7 +1,8 @@
 #!/usr/bin/env python3
 from pathlib import Path
 import argparse
-from src import FileLoader, GeneratorFSM
+from typing import List
+from src import FileLoader, GeneratorFSM, CallResult
 from pydantic import ValidationError
 import json
 
@@ -37,15 +38,18 @@ def main() -> None:
         print(f"Error: file system - {e}")
 
     fsm = GeneratorFSM(file_loader.func_definitions)
-    try:
-        for prompt in file_loader.prompts:
-            fsm.run(prompt.prompt)
-        # fsm.run("Replace all vowels in 'PrOgrAmIng Is fUn' with asterisks")
-        # fsm.run(file_loader.prompts[8].prompt)
+    results: List[CallResult] = []
+    for prompt in file_loader.prompts:
+        try:
+            res: CallResult = fsm.run(prompt.prompt)
+            results.append(res)
+            print(res.model_dump_json(indent=2))
             print(f"Elapsed time: {fsm.elapsed_time:.2f}")
             print()
-    except ValueError as e:
-        print(f"Error: {e}")
+        except ValueError as e:
+            print(f"Error: {e}")
+            continue
+    file_loader.write_call_result(results, Path(args.output))
 
 
 main()

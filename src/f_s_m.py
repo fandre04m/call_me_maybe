@@ -1,9 +1,8 @@
 from typing import Dict, List, Set
 from enum import Enum
 from llm_sdk import Small_LLM_Model
-from .file_handling import Function
-from .prompt_builder import PromptBuilder
-from .utils import convert_to_float, convert_to_int
+from .file_handling import Function, CallResult
+from .utils import PromptBuilder, to_type
 import time
 import json
 
@@ -200,8 +199,7 @@ class GeneratorFSM():
         self.elapsed_time += time.monotonic() - start
         return self.llm.decode(generated).strip()
 
-    def run(self, user_prompt: str) -> None:
-        print(f"User prompt: {user_prompt}")
+    def run(self, user_prompt: str) -> CallResult:
 
         func_name = ""
         self.state = State.SELECT_FUNCTION
@@ -211,7 +209,6 @@ class GeneratorFSM():
             prompt = prompt.sys_prompt(self.functions, user_prompt)
 
             func_name = self._gen_func_name(prompt)
-            print(f"Function: {func_name}\nParameters:")
 
             for func in self.functions:
                 if func_name == func.name:
@@ -229,16 +226,20 @@ class GeneratorFSM():
                 self.state = State.SELECT_VALUE
 
                 p_value = self._gen_param_value(p_type)
-                print(f" - {p_name}: {p_value}")
-                if p_type == "number":
-                    p_value = convert_to_float(p_value)
-                if p_type == "integer":
-                    p_value = convert_to_int(p_value)
+
+                p_value = to_type(p_type, p_value)
                 params[p_name] = p_value
+
                 if not self.remaining_params:
                     self.state = State.DONE
                 else:
                     self.state = State.SELECT_PARAM
 
         if self.state == State.DONE:
-            print(params)
+            return CallResult(
+                prompt=user_prompt,
+                name=func_name,
+                parameters=params,
+            )
+        else:
+            raise ValueError("Could not return a valid result object.")

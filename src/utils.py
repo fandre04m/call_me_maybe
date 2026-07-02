@@ -1,8 +1,43 @@
+from .file_handling import Function
+from typing import List, Union
 
 
-def convert_to_float(value: str) -> float:
-    return (float(value))
+class PromptBuilder:
+    def sys_prompt(
+        self,
+        functions: List[Function],
+        user_request: str
+    ) -> str:
+        prompt = [
+            "You are a function calling system.\n",
+            "Available functions:",
+        ]
+        for func in functions:
+            prompt.append(f"Function: {func.name}")
+            prompt.append(f"Description: {func.description}")
+            prompt.append("Arguments:")
+            for p_name, p_type in func.parameters.items():
+                prompt.append(f"{p_name} ({p_type.type})")
+        prompt.extend([
+            "\nExample:",
+            "Substitute the words 'test' in 'The test is actually just "
+            "a test' with 'joke'."
+            "fn_substitute_string_with_regex",
+            "source_string",
+            "The test is actually just a test",
+            "regex",
+            "test",
+            "replacement",
+            "joke",
+            "Please select the correct function from the available options."
+            f"\nPrompt: {user_request}"
+        ])
+        return "\n".join(prompt)
 
 
-def convert_to_int(value: str) -> int:
-    return (int(value, 10))
+def to_type(p_type: str, value: str) -> Union[str, int, float]:
+    if p_type == "number":
+        return float(value)
+    if p_type == "integer":
+        return int(value)
+    return str(value)
