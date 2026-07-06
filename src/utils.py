@@ -10,6 +10,7 @@ class PromptBuilder:
     ) -> str:
         prompt = [
             "You are a function calling system.\n",
+            "Choose the correct function and parameters, based on the user prompt.",
             "Available functions:",
         ]
         for func in functions:
@@ -29,8 +30,7 @@ class PromptBuilder:
             "test",
             "replacement",
             "joke",
-            "Please select the correct function from the available options."
-            f"\nPrompt: {user_request}"
+            f"\nUser prompt: {user_request}"
         ])
         return "\n".join(prompt)
 

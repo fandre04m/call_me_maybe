@@ -5,6 +5,7 @@ from .file_handling import Function, CallResult
 from .utils import PromptBuilder, to_type
 import time
 import json
+import numpy as np
 
 
 class TrieNode():
@@ -131,6 +132,16 @@ class GeneratorFSM():
                 logits[token_id] = float("-inf")
         return logits
 
+    def _softmax(self, logits: List[float], temp: float) -> np.ndarray:
+        arr = np.array(logits, dtype=np.float64) / temp
+        arr -= arr.max()
+        exp = np.exp(arr)
+        return exp / exp.sum()
+
+    def _sample(self, masked_logits: List[float], temp: float) -> int:
+        probs = self._softmax(masked_logits, temp)
+        return int(np.random.choice(len(probs), p=probs))
+
     def _gen_func_name(self, prompt: str) -> str:
         prefix_trie = PrefixTrie()
         for func in self.functions:
@@ -209,6 +220,8 @@ class GeneratorFSM():
             prompt = prompt.sys_prompt(self.functions, user_prompt)
 
             func_name = self._gen_func_name(prompt)
+            print(f"Prompt: {user_prompt}")
+            print(f"Function: {func_name}")
 
             for func in self.functions:
                 if func_name == func.name:
@@ -221,11 +234,13 @@ class GeneratorFSM():
         if self.state == State.SELECT_PARAM:
             while self.remaining_params:
                 p_name = self._gen_param_name()
+                print(f"Parameter: {p_name}", end="")
                 p_type = self.curr_func.parameters[p_name].type
 
                 self.state = State.SELECT_VALUE
 
                 p_value = self._gen_param_value(p_type)
+                print(f" = {p_value}")
 
                 p_value = to_type(p_type, p_value)
                 params[p_name] = p_value

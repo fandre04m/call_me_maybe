@@ -43,13 +43,13 @@ def main() -> None:
         try:
             res: CallResult = fsm.run(prompt.prompt)
             results.append(res)
-            print(res.model_dump_json(indent=2))
+            # print(res.model_dump_json(indent=2))
             print(f"Elapsed time: {fsm.elapsed_time:.2f}")
             print()
         except ValueError as e:
             print(f"Error: {e}")
             continue
-    file_loader.write_call_result(results, Path(args.output))
+    # file_loader.write_call_result(results, Path(args.output))
 
 
 main()
