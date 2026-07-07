@@ -39,16 +39,17 @@ def main() -> None:
 
     fsm = GeneratorFSM(file_loader.func_definitions)
     results: List[CallResult] = []
-    for prompt in file_loader.prompts:
-        try:
-            res: CallResult = fsm.run(prompt.prompt)
-            results.append(res)
-            # print(res.model_dump_json(indent=2))
-            print(f"Elapsed time: {fsm.elapsed_time:.2f}")
-            print()
-        except ValueError as e:
-            print(f"Error: {e}")
-            continue
+    res: CallResult = fsm.run(file_loader.prompts[0].prompt)
+    # for prompt in file_loader.prompts:
+    #     try:
+    #         res: CallResult = fsm.run(prompt.prompt)
+    #         results.append(res)
+    #         print(res.model_dump_json(indent=2))
+    #         print(f"Elapsed time: {fsm.elapsed_time:.2f}")
+    #         print()
+    #     except ValueError as e:
+    #         print(f"Error: {e}")
+    #         continue
     # file_loader.write_call_result(results, Path(args.output))
 
 

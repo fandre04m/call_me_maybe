@@ -70,21 +70,22 @@ class GeneratorFSM():
     def __init__(self, functions: List[Function]) -> None:
         self.llm = Small_LLM_Model()
         self.functions = functions
-        self.max_tokens = 20
+        self.max_tokens = 15
         self.elapsed_time: float = 0.0
         self.state = State.SELECT_FUNCTION
         self.curr_func: Function
         self.remaining_params = []
-        self.input_ids = []
+        self.input_ids: List[int] = []
+        self.gen_ids: List[int] = []
         self.vocab_file: Dict[str, int] = self._get_vocab()
         self.str_allowed: Set[int] = self._make_mask(
-            to_forbid="\""
+            to_forbid="\n\t"
         )
         self.num_allowed: Set[int] = self._make_mask(
-            to_allow="0123456789-.\n"
+            to_allow=",\n0123456789-."
         )
         self.int_allowed: Set[int] = self._make_mask(
-            to_allow="0123456789-\n"
+            to_allow=",\n0123456789-"
         )
 
     def _get_vocab(self) -> Dict[str, int]:
@@ -95,8 +96,8 @@ class GeneratorFSM():
         return vocab
 
     def _add_to_trie(self, trie: PrefixTrie, to_encode: str) -> None:
-        token_ids = self.llm.encode(to_encode + "\n")[0].tolist()
-        trie.insert(token_ids, to_encode + "\n")
+        token_ids = self.llm.encode(to_encode)[0].tolist()
+        trie.insert(token_ids, to_encode)
 
     def _make_mask(
         self,
@@ -132,17 +133,13 @@ class GeneratorFSM():
                 logits[token_id] = float("-inf")
         return logits
 
-    def _softmax(self, logits: List[float], temp: float) -> np.ndarray:
-        arr = np.array(logits, dtype=np.float64) / temp
-        arr -= arr.max()
-        exp = np.exp(arr)
-        return exp / exp.sum()
+    def _inject(self, to_encode: str) -> None:
+        token_ids: List[int] = self.llm.encode(to_encode)[0].tolist()
+        self.input_ids.extend(token_ids)
+        self.gen_ids.extend(token_ids)
+        print(self.llm.decode(token_ids), end="")
 
-    def _sample(self, masked_logits: List[float], temp: float) -> int:
-        probs = self._softmax(masked_logits, temp)
-        return int(np.random.choice(len(probs), p=probs))
-
-    def _gen_func_name(self, prompt: str) -> str:
+    def _gen_func_name(self) -> List[int]:
         prefix_trie = PrefixTrie()
         for func in self.functions:
             self._add_to_trie(prefix_trie, func.name)
@@ -150,7 +147,7 @@ class GeneratorFSM():
         generated: List[int] = []
 
         start = time.monotonic()
-        self.input_ids = self.llm.encode(prompt)[0].tolist()
+        # while len(generated) < self.max_tokens:
         while not prefix_trie.is_complete(generated):
             allowed = prefix_trie.allowed_tokens(generated)
             logits = self.llm.get_logits_from_input_ids(self.input_ids)
@@ -158,6 +155,7 @@ class GeneratorFSM():
             next_token = masked_logits.index(max(masked_logits))
             self.input_ids.append(next_token)
             generated.append(next_token)
+            print(self.llm.decode([next_token]), end="")
 
         if prefix_trie.get_name(generated) == "fn_no_match":
             raise ValueError(
@@ -165,9 +163,9 @@ class GeneratorFSM():
             )
 
         self.elapsed_time += time.monotonic() - start
-        return self.llm.decode(generated).strip()
+        return generated
 
-    def _gen_param_name(self) -> str:
+    def _gen_param_name(self) -> List[int]:
         prefix_trie = PrefixTrie()
 
         next_param = self.remaining_params[0]
@@ -182,12 +180,13 @@ class GeneratorFSM():
             next_token = masked_logits.index(max(masked_logits))
             self.input_ids.append(next_token)
             generated.append(next_token)
+            print(self.llm.decode([next_token]), end="")
 
         self.elapsed_time += time.monotonic() - start
         self.remaining_params.remove(next_param)
-        return self.llm.decode(generated).strip()
+        return generated
 
-    def _gen_param_value(self, p_type: str) -> str:
+    def _gen_param_value(self, p_type: str) -> List[int]:
         allowed = set()
         if p_type == "string":
             allowed = self.str_allowed
@@ -202,26 +201,33 @@ class GeneratorFSM():
             logits = self.llm.get_logits_from_input_ids(self.input_ids)
             masked_logits = self._mask_logits(logits, allowed)
             next_token = masked_logits.index(max(masked_logits))
+            tok_val = self.llm.decode([next_token])
+            if ',' in tok_val or '"' in tok_val or '\n' in tok_val:
+                break
             self.input_ids.append(next_token)
             generated.append(next_token)
-            if "\n" in self.llm.decode(generated):
-                break
+            print(tok_val, end="")
 
         self.elapsed_time += time.monotonic() - start
-        return self.llm.decode(generated).strip()
+        return generated
 
     def run(self, user_prompt: str) -> CallResult:
+        self.gen_ids = []
 
-        func_name = ""
+        prompter = PromptBuilder()
+        prompt = prompter.test_prompt(self.functions, user_prompt)
+        self.input_ids = self.llm.encode(prompt)[0].tolist()
+
         self.state = State.SELECT_FUNCTION
-        prompt = PromptBuilder()
-
         if self.state == State.SELECT_FUNCTION:
-            prompt = prompt.sys_prompt(self.functions, user_prompt)
-
-            func_name = self._gen_func_name(prompt)
             print(f"Prompt: {user_prompt}")
-            print(f"Function: {func_name}")
+            self._inject('{\n  "name": "')
+
+            func_name_ids = self._gen_func_name()
+            func_name = self.llm.decode(func_name_ids)
+            self.gen_ids.extend(func_name_ids)
+
+            self._inject('",\n  "parameters": {\n    "')
 
             for func in self.functions:
                 if func_name == func.name:
@@ -233,28 +239,47 @@ class GeneratorFSM():
         params = {}
         if self.state == State.SELECT_PARAM:
             while self.remaining_params:
-                p_name = self._gen_param_name()
-                print(f"Parameter: {p_name}", end="")
+                p_name_ids = self._gen_param_name()
+                p_name = self.llm.decode(p_name_ids)
+                self.gen_ids.extend(p_name_ids)
+
                 p_type = self.curr_func.parameters[p_name].type
+                if p_type in {"number", "integer"}:
+                    self._inject('": ')
+                else:
+                    self._inject('": "')
 
                 self.state = State.SELECT_VALUE
 
-                p_value = self._gen_param_value(p_type)
-                print(f" = {p_value}")
+                p_value_ids = self._gen_param_value(p_type)
+                p_value = self.llm.decode(p_value_ids)
+                self.gen_ids.extend(p_value_ids)
 
-                p_value = to_type(p_type, p_value)
-                params[p_name] = p_value
-
-                if not self.remaining_params:
-                    self.state = State.DONE
+                if self.remaining_params:
+                    if p_type in {"number", "integer"}:
+                        self._inject(',\n    "')
+                    else:
+                        self._inject('",\n    "')
                 else:
-                    self.state = State.SELECT_PARAM
-
-        if self.state == State.DONE:
-            return CallResult(
-                prompt=user_prompt,
-                name=func_name,
-                parameters=params,
-            )
-        else:
-            raise ValueError("Could not return a valid result object.")
+                    if p_type in {"number", "integer"}:
+                        self._inject('\n  }\n}')
+                    else:
+                        self._inject('"\n  }\n}')
+        #
+        # p_value = to_type(p_type, p_value)
+        # params[p_name] = p_value
+        #
+        # if not self.remaining_params:
+        #     self.state = State.DONE
+        # else:
+        #     self.state = State.SELECT_PARAM
+        #
+        # if self.state == State.DONE:
+        #     return CallResult(
+        #         prompt=user_prompt,
+        #         name=func_name,
+        #         parameters=params,
+        #     )
+        # else:
+        #     raise ValueError("Could not return a valid result object.")
+        print()
