@@ -44,7 +44,7 @@ def main() -> None:
         try:
             res: CallResult = fsm.run(prompt.prompt)
             results.append(res)
-            # print(res.model_dump_json(indent=2))
+            print("\nSuccess!")
             print(f"Elapsed time: {fsm.elapsed_time:.2f}")
             print()
         except ValueError as e:

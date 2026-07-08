@@ -5,7 +5,6 @@ from .file_handling import Function, CallResult
 from .utils import PromptBuilder, to_type
 import time
 import json
-# import numpy as np
 
 
 class TrieNode():
@@ -79,7 +78,7 @@ class GeneratorFSM():
         self.gen_ids: List[int] = []
         self.vocab_file: Dict[str, int] = self._get_vocab()
         self.str_allowed: Set[int] = self._make_mask(
-            to_forbid="{}"
+            to_forbid="`#$^"
         )
         self.num_allowed: Set[int] = self._make_mask(
             to_allow=",\n0123456789-."
@@ -96,7 +95,9 @@ class GeneratorFSM():
         return vocab
 
     def _add_to_trie(self, trie: PrefixTrie, to_encode: str) -> None:
+        start = time.monotonic()
         token_ids = self.llm.encode(to_encode)[0].tolist()
+        self.elapsed_time += time.monotonic() - start
         trie.insert(token_ids, to_encode)
 
     def _make_mask(
@@ -134,7 +135,9 @@ class GeneratorFSM():
         return logits
 
     def _inject(self, to_encode: str) -> None:
+        start = time.monotonic()
         token_ids: List[int] = self.llm.encode(to_encode)[0].tolist()
+        self.elapsed_time += time.monotonic() - start
         self.input_ids.extend(token_ids)
         self.gen_ids.extend(token_ids)
         print(self.llm.decode(token_ids), end="")
@@ -145,9 +148,7 @@ class GeneratorFSM():
             self._add_to_trie(prefix_trie, func.name)
 
         generated: List[int] = []
-
         start = time.monotonic()
-        # while len(generated) < self.max_tokens:
         while not prefix_trie.is_complete(generated):
             allowed = prefix_trie.allowed_tokens(generated)
             logits = self.llm.get_logits_from_input_ids(self.input_ids)
@@ -187,14 +188,17 @@ class GeneratorFSM():
         return generated
 
     def _gen_param_value(self, p_type: str) -> List[int]:
-        stop_chars = ("\n", '"', ",")
+        stop_chars = set()
         allowed = set()
         if p_type == "string":
             allowed = self.str_allowed
+            stop_chars = ('"',)
         if p_type == "number":
             allowed = self.num_allowed
+            stop_chars = ("\n", ",")
         if p_type == "integer":
             allowed = self.int_allowed
+            stop_chars = ("\n", ",")
 
         generated: List[int] = []
         start = time.monotonic()
@@ -228,33 +232,33 @@ class GeneratorFSM():
         self.gen_ids = []
 
         prompter = PromptBuilder()
-        prompt = prompter.test_prompt(self.functions, user_prompt)
+        prompt = prompter.make_prompt(self.functions, user_prompt)
         self.input_ids = self.llm.encode(prompt)[0].tolist()
 
         self.state = State.SELECT_FUNCTION
         func_name = ""
-        if self.state == State.SELECT_FUNCTION:
-            print(f"Prompt: {user_prompt}")
-            self._inject('{\n  "name": "')
-
-            func_name_ids = self._gen_func_name()
-            func_name = self.llm.decode(func_name_ids)
-            self.gen_ids.extend(func_name_ids)
-
-            self._inject('",\n  "parameters": {\n')
-
-            for func in self.functions:
-                if func_name == func.name:
-                    self.curr_func = func
-                    self.remaining_params = list(func.parameters.keys())
-
-            self.state = State.SELECT_PARAM
-
-        params = {}
         p_name = ""
         p_value = ""
         p_type = ""
-        while self.remaining_params:
+        params = {}
+        while self.state != State.DONE:
+            if self.state == State.SELECT_FUNCTION:
+                print(f"Prompt: {user_prompt}")
+                self._inject('{\n  "name": "')
+
+                func_name_ids = self._gen_func_name()
+                func_name = self.llm.decode(func_name_ids)
+                self.gen_ids.extend(func_name_ids)
+
+                self._inject('",\n  "parameters": {\n')
+
+                for func in self.functions:
+                    if func_name == func.name:
+                        self.curr_func = func
+                        self.remaining_params = list(func.parameters.keys())
+
+                self.state = State.SELECT_PARAM
+
             if self.state == State.SELECT_PARAM:
                 self._inject('    "')
                 p_name_ids = self._gen_param_name()
@@ -291,8 +295,6 @@ class GeneratorFSM():
                 self.state = State.SELECT_PARAM
 
         if self.state == State.DONE:
-            print("\n")
-            print("Success!")
             return CallResult(
                 prompt=user_prompt,
                 name=func_name,
