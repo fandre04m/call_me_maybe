@@ -5,7 +5,7 @@ from .file_handling import Function, CallResult
 from .utils import PromptBuilder, to_type
 import time
 import json
-import numpy as np
+# import numpy as np
 
 
 class TrieNode():
@@ -79,7 +79,7 @@ class GeneratorFSM():
         self.gen_ids: List[int] = []
         self.vocab_file: Dict[str, int] = self._get_vocab()
         self.str_allowed: Set[int] = self._make_mask(
-            to_forbid="\n\t"
+            to_forbid="{}"
         )
         self.num_allowed: Set[int] = self._make_mask(
             to_allow=",\n0123456789-."
@@ -187,6 +187,7 @@ class GeneratorFSM():
         return generated
 
     def _gen_param_value(self, p_type: str) -> List[int]:
+        stop_chars = ("\n", '"', ",")
         allowed = set()
         if p_type == "string":
             allowed = self.str_allowed
@@ -202,8 +203,20 @@ class GeneratorFSM():
             masked_logits = self._mask_logits(logits, allowed)
             next_token = masked_logits.index(max(masked_logits))
             tok_val = self.llm.decode([next_token])
-            if ',' in tok_val or '"' in tok_val or '\n' in tok_val:
+
+            stop_idx = min(
+                (tok_val.index(c) for c in stop_chars if c in tok_val),
+                default=-1,
+            )
+            if stop_idx != -1:
+                prefix = tok_val[:stop_idx]
+                if prefix:
+                    prefix_ids = self.llm.encode(prefix)[0].tolist()
+                    self.input_ids.extend(prefix_ids)
+                    generated.extend(prefix_ids)
+                    print(prefix, end="")
                 break
+
             self.input_ids.append(next_token)
             generated.append(next_token)
             print(tok_val, end="")
@@ -219,6 +232,7 @@ class GeneratorFSM():
         self.input_ids = self.llm.encode(prompt)[0].tolist()
 
         self.state = State.SELECT_FUNCTION
+        func_name = ""
         if self.state == State.SELECT_FUNCTION:
             print(f"Prompt: {user_prompt}")
             self._inject('{\n  "name": "')
@@ -227,7 +241,7 @@ class GeneratorFSM():
             func_name = self.llm.decode(func_name_ids)
             self.gen_ids.extend(func_name_ids)
 
-            self._inject('",\n  "parameters": {\n    "')
+            self._inject('",\n  "parameters": {\n')
 
             for func in self.functions:
                 if func_name == func.name:
@@ -237,8 +251,12 @@ class GeneratorFSM():
             self.state = State.SELECT_PARAM
 
         params = {}
-        if self.state == State.SELECT_PARAM:
-            while self.remaining_params:
+        p_name = ""
+        p_value = ""
+        p_type = ""
+        while self.remaining_params:
+            if self.state == State.SELECT_PARAM:
+                self._inject('    "')
                 p_name_ids = self._gen_param_name()
                 p_name = self.llm.decode(p_name_ids)
                 self.gen_ids.extend(p_name_ids)
@@ -251,35 +269,34 @@ class GeneratorFSM():
 
                 self.state = State.SELECT_VALUE
 
+            if self.state == State.SELECT_VALUE:
                 p_value_ids = self._gen_param_value(p_type)
                 p_value = self.llm.decode(p_value_ids)
                 self.gen_ids.extend(p_value_ids)
 
-                if self.remaining_params:
-                    if p_type in {"number", "integer"}:
-                        self._inject(',\n    "')
-                    else:
-                        self._inject('",\n    "')
+                p_value = to_type(p_type, p_value)
+                params[p_name] = p_value
+
+            if not self.remaining_params:
+                if p_type in {"number", "integer"}:
+                    self._inject('\n  }\n}')
                 else:
-                    if p_type in {"number", "integer"}:
-                        self._inject('\n  }\n}')
-                    else:
-                        self._inject('"\n  }\n}')
-        #
-        # p_value = to_type(p_type, p_value)
-        # params[p_name] = p_value
-        #
-        # if not self.remaining_params:
-        #     self.state = State.DONE
-        # else:
-        #     self.state = State.SELECT_PARAM
-        #
-        # if self.state == State.DONE:
-        #     return CallResult(
-        #         prompt=user_prompt,
-        #         name=func_name,
-        #         parameters=params,
-        #     )
-        # else:
-        #     raise ValueError("Could not return a valid result object.")
-        print()
+                    self._inject('"\n  }\n}')
+                self.state = State.DONE
+            else:
+                if p_type in {"number", "integer"}:
+                    self._inject(',\n')
+                else:
+                    self._inject('",\n')
+                self.state = State.SELECT_PARAM
+
+        if self.state == State.DONE:
+            print("\n")
+            print("Success!")
+            return CallResult(
+                prompt=user_prompt,
+                name=func_name,
+                parameters=params,
+            )
+        else:
+            raise ValueError("Could not return a valid JSON object.")

@@ -10,7 +10,8 @@ class PromptBuilder:
     ) -> str:
         prompt = [
             "You are a function selecting tool.\n",
-            "Select from the list the function and arguments that better satisfy the request.",
+            "Select from the list the function and arguments "
+            "that better satisfy the request.",
             "Function list:",
         ]
         for func in functions:
@@ -40,38 +41,31 @@ class PromptBuilder:
 
     def test_prompt(self, functions: List[Function], user_prompt: str) -> str:
         prompt = [
-            "You are a function selecting tool.\n",
-            "Produce only a valid JSON structure.",
-            "Do not output reasoning.",
+            "You are a function calling tool.\n",
+            "Produce only valid JSON structure.\n",
+            # "Do not output reasoning.",
             "Function list:",
         ]
         for func in functions:
             prompt.append(f"Function: {func.name}")
-            prompt.append(f"Description: {func.description}")
+            # prompt.append(f"Description: {func.description}")
             prompt.append("Parameters:")
             for p_name, p_type in func.parameters.items():
                 prompt.append(f"{p_name} ({p_type.type})")
         prompt.extend([
-            # "Required answer format:",
-            # "{",
-            # '  "name": "fn_function_name",',
-            # '  "parameters": {',
-            # '    "param_name": "value"',
-            # "  }",
-            # "}",
             "",
-            "Example user request:",
-            "Wave to Pedro",
-            "",
-            "Example system answer:",
+            "Example:",
+            "What is the result of 4 + 8?",
             "{",
-            '  "name": "fn_wave",',
+            '  "name": "fn_add_numbers",',
             '  "parameters": {',
-            '    "name": "Pedro",',
+            '    "a": 4,',
+            '    "b": 8',
             "  }",
-            "},",
+            "}",
+            "",
             "Select the correct function and parameters from the list.",
-            f"\nRequest: {user_prompt}"
+            f"\n{user_prompt}"
         ])
         return "\n".join(prompt)
 
