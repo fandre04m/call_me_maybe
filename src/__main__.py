@@ -46,9 +46,8 @@ def main() -> None:
             results.append(res)
             print("\nSuccess!")
             print(f"Elapsed time: {fsm.elapsed_time:.2f}")
-            print()
         except ValueError as e:
-            print(f"Error: {e}")
+            print(f"\nError: {e}")
             continue
     file_loader.write_call_result(results, Path(args.output))
 

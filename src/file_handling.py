@@ -56,9 +56,9 @@ class FileLoader:
         for func in func_lst:
             self.func_definitions.append(Function.model_validate(func))
         none_func = Function(
-            name='fn_no_match',
+            name='no_func_found',
             description="Function to select when not able "
-                        "to find a certain match.",
+                        "to find a good match.",
             parameters={},
             returns={
                 "type": "none"

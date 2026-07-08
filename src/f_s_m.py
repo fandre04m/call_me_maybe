@@ -158,11 +158,6 @@ class GeneratorFSM():
             generated.append(next_token)
             print(self.llm.decode([next_token]), end="")
 
-        if prefix_trie.get_name(generated) == "fn_no_match":
-            raise ValueError(
-                "Could not find a valid function for the prompt."
-            )
-
         self.elapsed_time += time.monotonic() - start
         return generated
 
@@ -243,11 +238,15 @@ class GeneratorFSM():
         params = {}
         while self.state != State.DONE:
             if self.state == State.SELECT_FUNCTION:
-                print(f"Prompt: {user_prompt}")
+                print(f"\nPrompt: {user_prompt}")
                 self._inject('{\n  "name": "')
 
                 func_name_ids = self._gen_func_name()
                 func_name = self.llm.decode(func_name_ids)
+                if func_name == "no_func_found":
+                    raise ValueError(
+                        "Could not find an acceptable function."
+                    )
                 self.gen_ids.extend(func_name_ids)
 
                 self._inject('",\n  "parameters": {\n')
