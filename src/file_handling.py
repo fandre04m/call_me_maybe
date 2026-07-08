@@ -1,5 +1,5 @@
 from pathlib import Path
-from pydantic import BaseModel
+from pydantic import BaseModel, field_validator, ValidationError
 from typing import List, Dict, Union
 import json
 
@@ -26,6 +26,13 @@ class Prompt(BaseModel):
     Prompt structure validation.
     """
     prompt: str
+
+    @field_validator("prompt")
+    @classmethod
+    def validate_prompt(cls, value: str) -> str:
+        if not value.strip():
+            raise ValueError("Prompt cannot be empty.")
+        return value
 
 
 class CallResult(BaseModel):
@@ -68,8 +75,11 @@ class FileLoader:
 
     def load_prompts(self, input_path: Path) -> None:
         prompt_lst = load_json(input_path)
-        for prompt in prompt_lst:
-            self.prompts.append(Prompt.model_validate(prompt))
+        for i, prompt in enumerate(prompt_lst):
+            try:
+                self.prompts.append(Prompt.model_validate(prompt))
+            except ValidationError as e:
+                print(f"Skipping prompt #{i}: {e.errors()[0]['msg']}\n")
 
     def write_call_result(
         self,

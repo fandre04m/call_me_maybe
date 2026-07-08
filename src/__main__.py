@@ -3,7 +3,6 @@ from pathlib import Path
 import argparse
 from typing import List
 from src import FileLoader, GeneratorFSM, CallResult
-from pydantic import ValidationError
 import json
 
 
@@ -32,8 +31,6 @@ def main() -> None:
         print(f"Error: file not found - {e}")
     except json.JSONDecodeError as e:
         print(f"Error: invalid JSON - {e}")
-    except ValidationError as e:
-        print(f"Error: data not compatible - {e}")
     except (PermissionError, OSError) as e:
         print(f"Error: file system - {e}")
 
