@@ -1,4 +1,4 @@
-from typing import Dict, List, Set
+from typing import Dict, List, Set, Tuple
 from enum import Enum
 from llm_sdk import Small_LLM_Model
 from .file_handling import Function, CallResult
@@ -86,6 +86,11 @@ class Generator():
         self.int_allowed: Set[int] = self._make_mask(
             to_allow=",\n0123456789-"
         )
+        self.gen_configs: Dict[str, Tuple[Set[int], Tuple[str, ...]]] = {
+            "string": (self.str_allowed, ('"',)),
+            "number": (self.num_allowed, (",", "\n")),
+            "integer": (self.int_allowed, (",", "\n"))
+        }
 
     def _get_vocab(self) -> Dict[str, int]:
         path = self.llm.get_path_to_vocab_file()
@@ -142,7 +147,7 @@ class Generator():
         self.gen_ids.extend(token_ids)
         print(self.llm.decode(token_ids), end="")
 
-    def _trie_generator(self, trie: PrefixTrie) -> List[int]:
+    def _generate_from_trie(self, trie: PrefixTrie) -> List[int]:
         generated: List[int] = []
 
         start = time.monotonic()
@@ -164,11 +169,10 @@ class Generator():
         for func in self.functions:
             self._add_to_trie(funcs_trie, func.name)
 
-        func_name_ids = self._trie_generator(funcs_trie)
+        func_name_ids = self._generate_from_trie(funcs_trie)
         self.gen_ids.extend(func_name_ids)
-        func_name = self.llm.decode(func_name_ids)
 
-        return func_name
+        return self.llm.decode(func_name_ids)
 
     def _gen_param_name(self) -> str:
         param_trie = PrefixTrie()
@@ -176,26 +180,15 @@ class Generator():
         next_param = self.remaining_params[0]
         self._add_to_trie(param_trie, next_param)
 
-        param_name_ids = self._trie_generator(param_trie)
+        param_name_ids = self._generate_from_trie(param_trie)
         self.gen_ids.extend(param_name_ids)
-        param_name = self.llm.decode(param_name_ids)
 
         self.remaining_params.remove(next_param)
 
-        return param_name
+        return self.llm.decode(param_name_ids)
 
-    def _gen_param_value(self, p_type: str) -> List[int]:
-        stop_chars = set()
-        allowed = set()
-        if p_type == "string":
-            allowed = self.str_allowed
-            stop_chars = ('"',)
-        if p_type == "number":
-            allowed = self.num_allowed
-            stop_chars = ("\n", ",")
-        if p_type == "integer":
-            allowed = self.int_allowed
-            stop_chars = ("\n", ",")
+    def _generate_from_mask(self, p_type: str) -> str:
+        allowed, stop_chars = self.gen_configs[p_type]
 
         generated: List[int] = []
         start = time.monotonic()
@@ -223,7 +216,9 @@ class Generator():
             print(tok_val, end="")
 
         self.elapsed_time += time.monotonic() - start
-        return generated
+        self.gen_ids.extend(generated)
+
+        return self.llm.decode(generated)
 
     def run(self, user_prompt: str) -> CallResult:
         self.gen_ids = []
@@ -264,9 +259,9 @@ class Generator():
 
             if self.state == State.SELECT_PARAM:
                 self._inject('    "')
-                param_name = self._gen_param_name()
+                p_name = self._gen_param_name()
 
-                p_type = self.curr_func.parameters[param_name].type
+                p_type = self.curr_func.parameters[p_name].type
                 if p_type in {"number", "integer"}:
                     self._inject('": ')
                 else:
@@ -275,9 +270,7 @@ class Generator():
                 self.state = State.SELECT_VALUE
 
             if self.state == State.SELECT_VALUE:
-                p_value_ids = self._gen_param_value(p_type)
-                p_value = self.llm.decode(p_value_ids)
-                self.gen_ids.extend(p_value_ids)
+                p_value = self._generate_from_mask(p_type)
 
                 p_value = to_type(p_type, p_value)
                 params[p_name] = p_value

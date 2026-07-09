@@ -33,13 +33,16 @@ class PromptBuilder:
 
 
 def to_type(p_type: str, value: str) -> Union[str, int, float]:
-    if p_type == "string":
-        try:
-            return json.loads(f'"{value}"')
-        except json.JSONDecodeError:
-            pass
-    if p_type == "number":
-        return float(value)
-    if p_type == "integer":
-        return int(value)
-    return str(value)
+    try:
+        if p_type == "string":
+            try:
+                return json.loads(f'"{value}"')
+            except json.JSONDecodeError:
+                pass
+        if p_type == "number":
+            return float(value)
+        if p_type == "integer":
+            return int(value)
+        return str(value)
+    except ValueError as e:
+        raise ValueError(f"Invalid {p_type}: {value!r}") from e
