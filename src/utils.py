@@ -32,7 +32,7 @@ class PromptBuilder:
         return "\n".join(prompt)
 
 
-def to_type(p_type: str, value: str) -> Union[str, int, float]:
+def to_type(p_type: str, value: str) -> Union[str, int, float, bool]:
     try:
         if p_type == "string":
             try:
@@ -43,6 +43,12 @@ def to_type(p_type: str, value: str) -> Union[str, int, float]:
             return float(value)
         if p_type == "integer":
             return int(value)
+        if p_type == "boolean":
+            if value == "true":
+                return True
+            if value == "false":
+                return False
+            raise ValueError(f"Invalid boolean: {value!r}")
         return str(value)
     except ValueError as e:
         raise ValueError(f"Invalid {p_type}: {value!r}") from e

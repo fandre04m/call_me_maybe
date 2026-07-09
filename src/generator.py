@@ -163,6 +163,41 @@ class Generator():
         self.elapsed_time += time.monotonic() - start
         return generated
 
+    def _generate_from_mask(
+        self,
+        allowed: Set[int],
+        stop_chars: Tuple[str, ...]
+    ) -> List[int]:
+        generated: List[int] = []
+
+        start = time.monotonic()
+        while len(generated) < self.max_tokens:
+            logits = self.llm.get_logits_from_input_ids(self.input_ids)
+            masked_logits = self._mask_logits(logits, allowed)
+            next_token = masked_logits.index(max(masked_logits))
+
+            tok_val = self.llm.decode([next_token])
+            stop_idx = min(
+                (tok_val.index(c) for c in stop_chars if c in tok_val),
+                default=-1,
+            )
+            if stop_idx != -1:
+                prefix = tok_val[:stop_idx]
+                if prefix:
+                    prefix_ids = self.llm.encode(prefix)[0].tolist()
+                    self.input_ids.extend(prefix_ids)
+                    generated.extend(prefix_ids)
+                    print(prefix, end="")
+                break
+
+            self.input_ids.append(next_token)
+            generated.append(next_token)
+            print(tok_val, end="")
+
+        self.elapsed_time += time.monotonic() - start
+
+        return generated
+
     def _gen_func_name(self) -> str:
         funcs_trie = PrefixTrie()
 
@@ -187,38 +222,25 @@ class Generator():
 
         return self.llm.decode(param_name_ids)
 
-    def _generate_from_mask(self, p_type: str) -> str:
-        allowed, stop_chars = self.gen_configs[p_type]
+    def _gen_param_value(self, p_type: str) -> str:
+        if p_type == "boolean":
+            bool_trie = PrefixTrie()
+            bool_vals = ["true", "false"]
 
-        generated: List[int] = []
-        start = time.monotonic()
-        while len(generated) < self.max_tokens:
-            logits = self.llm.get_logits_from_input_ids(self.input_ids)
-            masked_logits = self._mask_logits(logits, allowed)
-            next_token = masked_logits.index(max(masked_logits))
-            tok_val = self.llm.decode([next_token])
+            for val in bool_vals:
+                self._add_to_trie(bool_trie, val)
 
-            stop_idx = min(
-                (tok_val.index(c) for c in stop_chars if c in tok_val),
-                default=-1,
-            )
-            if stop_idx != -1:
-                prefix = tok_val[:stop_idx]
-                if prefix:
-                    prefix_ids = self.llm.encode(prefix)[0].tolist()
-                    self.input_ids.extend(prefix_ids)
-                    generated.extend(prefix_ids)
-                    print(prefix, end="")
-                break
+            param_val_ids = self._generate_from_trie(bool_trie)
+            self.gen_ids.extend(param_val_ids)
 
-            self.input_ids.append(next_token)
-            generated.append(next_token)
-            print(tok_val, end="")
+            return self.llm.decode(param_val_ids)
+        else:
+            allowed, stop_chars = self.gen_configs[p_type]
 
-        self.elapsed_time += time.monotonic() - start
-        self.gen_ids.extend(generated)
+            param_val_ids = self._generate_from_mask(allowed, stop_chars)
+            self.gen_ids.extend(param_val_ids)
 
-        return self.llm.decode(generated)
+            return self.llm.decode(param_val_ids)
 
     def run(self, user_prompt: str) -> CallResult:
         self.gen_ids = []
@@ -270,7 +292,7 @@ class Generator():
                 self.state = State.SELECT_VALUE
 
             if self.state == State.SELECT_VALUE:
-                p_value = self._generate_from_mask(p_type)
+                p_value = self._gen_param_value(p_type)
 
                 p_value = to_type(p_type, p_value)
                 params[p_name] = p_value
