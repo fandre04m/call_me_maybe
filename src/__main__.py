@@ -2,7 +2,7 @@
 from pathlib import Path
 import argparse
 from typing import List
-from src import FileLoader, GeneratorFSM, CallResult
+from src import FileLoader, Generator, CallResult
 import json
 
 
@@ -34,9 +34,9 @@ def main() -> None:
     except (PermissionError, OSError) as e:
         print(f"Error: file system - {e}")
 
-    fsm = GeneratorFSM(file_loader.func_definitions)
+    fsm = Generator(file_loader.func_definitions)
     results: List[CallResult] = []
-    # res: CallResult = fsm.run(file_loader.prompts[8].prompt)
+    # res: CallResult = fsm.run("")
     for prompt in file_loader.prompts:
         try:
             res: CallResult = fsm.run(prompt.prompt)

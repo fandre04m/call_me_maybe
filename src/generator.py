@@ -65,7 +65,7 @@ class State(Enum):
     DONE = 4
 
 
-class GeneratorFSM():
+class Generator():
     def __init__(self, functions: List[Function]) -> None:
         self.llm = Small_LLM_Model()
         self.functions = functions
@@ -94,12 +94,6 @@ class GeneratorFSM():
 
         return vocab
 
-    def _add_to_trie(self, trie: PrefixTrie, to_encode: str) -> None:
-        start = time.monotonic()
-        token_ids = self.llm.encode(to_encode)[0].tolist()
-        self.elapsed_time += time.monotonic() - start
-        trie.insert(token_ids, to_encode)
-
     def _make_mask(
         self,
         *,
@@ -124,6 +118,12 @@ class GeneratorFSM():
 
         return set(allowed)
 
+    def _add_to_trie(self, trie: PrefixTrie, to_encode: str) -> None:
+        start = time.monotonic()
+        token_ids = self.llm.encode(to_encode)[0].tolist()
+        self.elapsed_time += time.monotonic() - start
+        trie.insert(token_ids, to_encode)
+
     def _mask_logits(
         self,
         logits: List[float],
@@ -142,15 +142,12 @@ class GeneratorFSM():
         self.gen_ids.extend(token_ids)
         print(self.llm.decode(token_ids), end="")
 
-    def _gen_func_name(self) -> List[int]:
-        prefix_trie = PrefixTrie()
-        for func in self.functions:
-            self._add_to_trie(prefix_trie, func.name)
-
+    def _trie_generator(self, trie: PrefixTrie) -> List[int]:
         generated: List[int] = []
+
         start = time.monotonic()
-        while not prefix_trie.is_complete(generated):
-            allowed = prefix_trie.allowed_tokens(generated)
+        while not trie.is_complete(generated):
+            allowed = trie.allowed_tokens(generated)
             logits = self.llm.get_logits_from_input_ids(self.input_ids)
             masked_logits = self._mask_logits(logits, allowed)
             next_token = masked_logits.index(max(masked_logits))
@@ -161,26 +158,31 @@ class GeneratorFSM():
         self.elapsed_time += time.monotonic() - start
         return generated
 
-    def _gen_param_name(self) -> List[int]:
-        prefix_trie = PrefixTrie()
+    def _gen_func_name(self) -> str:
+        funcs_trie = PrefixTrie()
+
+        for func in self.functions:
+            self._add_to_trie(funcs_trie, func.name)
+
+        func_name_ids = self._trie_generator(funcs_trie)
+        self.gen_ids.extend(func_name_ids)
+        func_name = self.llm.decode(func_name_ids)
+
+        return func_name
+
+    def _gen_param_name(self) -> str:
+        param_trie = PrefixTrie()
 
         next_param = self.remaining_params[0]
-        self._add_to_trie(prefix_trie, next_param)
+        self._add_to_trie(param_trie, next_param)
 
-        generated: List[int] = []
-        start = time.monotonic()
-        while not prefix_trie.is_complete(generated):
-            allowed = prefix_trie.allowed_tokens(generated)
-            logits = self.llm.get_logits_from_input_ids(self.input_ids)
-            masked_logits = self._mask_logits(logits, allowed)
-            next_token = masked_logits.index(max(masked_logits))
-            self.input_ids.append(next_token)
-            generated.append(next_token)
-            print(self.llm.decode([next_token]), end="")
+        param_name_ids = self._trie_generator(param_trie)
+        self.gen_ids.extend(param_name_ids)
+        param_name = self.llm.decode(param_name_ids)
 
-        self.elapsed_time += time.monotonic() - start
         self.remaining_params.remove(next_param)
-        return generated
+
+        return param_name
 
     def _gen_param_value(self, p_type: str) -> List[int]:
         stop_chars = set()
@@ -241,13 +243,15 @@ class GeneratorFSM():
                 print(f"\nPrompt: {user_prompt}")
                 self._inject('{\n  "name": "')
 
-                func_name_ids = self._gen_func_name()
-                func_name = self.llm.decode(func_name_ids)
-                if func_name == "no_func_found":
-                    raise ValueError(
-                        "Could not find an acceptable function."
+                func_name = self._gen_func_name()
+
+                if func_name == "fn_none_found":
+                    self._inject('",\n  "parameters": {}\n}')
+                    return CallResult(
+                        prompt=user_prompt,
+                        name=func_name,
+                        parameters=params
                     )
-                self.gen_ids.extend(func_name_ids)
 
                 self._inject('",\n  "parameters": {\n')
 
@@ -260,11 +264,9 @@ class GeneratorFSM():
 
             if self.state == State.SELECT_PARAM:
                 self._inject('    "')
-                p_name_ids = self._gen_param_name()
-                p_name = self.llm.decode(p_name_ids)
-                self.gen_ids.extend(p_name_ids)
+                param_name = self._gen_param_name()
 
-                p_type = self.curr_func.parameters[p_name].type
+                p_type = self.curr_func.parameters[param_name].type
                 if p_type in {"number", "integer"}:
                     self._inject('": ')
                 else:

@@ -12,8 +12,6 @@ class PromptBuilder:
         ]
         for func in functions:
             prompt.append(f"Function: {func.name}")
-            if func.name == "no_func_found":
-                prompt.append(f"Purpose: {func.description}")
             prompt.append("Parameters:")
             for p_name, p_type in func.parameters.items():
                 prompt.append(f"{p_name} ({p_type.type})")

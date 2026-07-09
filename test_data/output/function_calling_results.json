@@ -76,5 +76,13 @@
     "parameters": {
       "template": "Hello {user}'s profile!"
     }
+  },
+  {
+    "prompt": "Format template: Say \"hello\" to {name}",
+    "name": "fn_read_file",
+    "parameters": {
+      "path": "path/to/file.txt",
+      "encoding": "utf-8"
+    }
   }
 ]

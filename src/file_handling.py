@@ -1,6 +1,6 @@
 from pathlib import Path
 from pydantic import BaseModel, field_validator, ValidationError
-from typing import List, Dict, Union
+from typing import List, Dict, Union, Literal
 import json
 
 
@@ -8,7 +8,7 @@ class Parameter(BaseModel):
     """
     Parameter structure validation
     """
-    type: str
+    type: Literal["string", "number", "integer", "boolean"]
 
 
 class Function(BaseModel):
@@ -19,6 +19,24 @@ class Function(BaseModel):
     description: str
     parameters: Dict[str, Parameter]
     returns: Dict[str, str]
+
+    @field_validator("name", "description")
+    @classmethod
+    def not_empty(cls, value: str) -> str:
+        if not value.strip():
+            raise ValueError("Function name/description cannot be empty.")
+        return value
+
+    @field_validator("parameters")
+    @classmethod
+    def no_param_name(
+        cls,
+        value: Dict[str, Parameter]
+    ) -> Dict[str, Parameter]:
+        for name in value:
+            if not name.strip():
+                raise ValueError("Parameter name cannot be empty.")
+        return value
 
 
 class Prompt(BaseModel):
@@ -60,12 +78,14 @@ class FileLoader:
 
     def load_func_definitions(self, functions_path: Path) -> None:
         func_lst = load_json(functions_path)
-        for func in func_lst:
-            self.func_definitions.append(Function.model_validate(func))
+        for i, func in enumerate(func_lst):
+            try:
+                self.func_definitions.append(Function.model_validate(func))
+            except ValidationError as e:
+                print(f"Skipping function #{i}: {e.errors()[0]['msg']}\n")
         none_func = Function(
-            name='no_func_found',
-            description="Function to select when not able "
-                        "to find a good match.",
+            name='fn_none_found',
+            description="Function to select when no good option is available.",
             parameters={},
             returns={
                 "type": "none"
