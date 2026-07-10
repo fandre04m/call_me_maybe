@@ -42,7 +42,7 @@ def main() -> None:
             res: CallResult = fsm.run(prompt.prompt)
             results.append(res)
             print("\nSuccess!")
-            print(f"Elapsed time: {fsm.elapsed_time:.2f}")
+            # print(f"Elapsed time: {fsm.elapsed_time:.2f}")
         except ValueError as e:
             print(f"\nError: {e}")
             continue

@@ -57,6 +57,13 @@ class PrefixTrie():
         return self.get_name(prefix) is not None
 
 
+def mask_logits(logits: List[float], allowed: Set[int]) -> List[float]:
+    for token_id in range(len(logits)):
+        if token_id not in allowed:
+            logits[token_id] = float("-inf")
+    return logits
+
+
 class State(Enum):
     SELECT_FUNCTION = 1
     SELECT_PARAM = 2
@@ -68,12 +75,11 @@ class Generator():
     def __init__(self, functions: List[Function]) -> None:
         self.llm = Small_LLM_Model()
         self.functions = functions
+        self.input_ids: List[int] = []
         self.max_tokens = 15
         self.state = State.SELECT_FUNCTION
         self.curr_func: Function
         self.remaining_params = []
-        self.input_ids: List[int] = []
-        self.gen_ids: List[int] = []
         self.vocab_file: Dict[str, int] = self._get_vocab()
         self.str_allowed: Set[int] = self._make_mask(
             to_forbid="`#$^"
@@ -125,20 +131,9 @@ class Generator():
         token_ids = self.llm.encode(to_encode)[0].tolist()
         trie.insert(token_ids, to_encode)
 
-    def _mask_logits(
-        self,
-        logits: List[float],
-        allowed: Set[int]
-    ) -> List[float]:
-        for token_id in range(len(logits)):
-            if token_id not in allowed:
-                logits[token_id] = float("-inf")
-        return logits
-
     def _inject(self, to_encode: str) -> None:
         token_ids: List[int] = self.llm.encode(to_encode)[0].tolist()
         self.input_ids.extend(token_ids)
-        self.gen_ids.extend(token_ids)
         print(self.llm.decode(token_ids), end="")
 
     def _generate_from_trie(self, trie: PrefixTrie) -> List[int]:
@@ -147,7 +142,7 @@ class Generator():
         while not trie.is_complete(generated):
             allowed = trie.allowed_tokens(generated)
             logits = self.llm.get_logits_from_input_ids(self.input_ids)
-            masked_logits = self._mask_logits(logits, allowed)
+            masked_logits = mask_logits(logits, allowed)
             next_token = masked_logits.index(max(masked_logits))
             self.input_ids.append(next_token)
             generated.append(next_token)
@@ -164,7 +159,7 @@ class Generator():
 
         while len(generated) < self.max_tokens:
             logits = self.llm.get_logits_from_input_ids(self.input_ids)
-            masked_logits = self._mask_logits(logits, allowed)
+            masked_logits = mask_logits(logits, allowed)
             next_token = masked_logits.index(max(masked_logits))
 
             tok_val = self.llm.decode([next_token])
@@ -194,7 +189,6 @@ class Generator():
             self._add_to_trie(funcs_trie, func.name)
 
         func_name_ids = self._generate_from_trie(funcs_trie)
-        self.gen_ids.extend(func_name_ids)
 
         return self.llm.decode(func_name_ids)
 
@@ -205,7 +199,6 @@ class Generator():
         self._add_to_trie(param_trie, next_param)
 
         param_name_ids = self._generate_from_trie(param_trie)
-        self.gen_ids.extend(param_name_ids)
 
         self.remaining_params.remove(next_param)
 
@@ -220,20 +213,16 @@ class Generator():
                 self._add_to_trie(bool_trie, val)
 
             param_val_ids = self._generate_from_trie(bool_trie)
-            self.gen_ids.extend(param_val_ids)
 
             return self.llm.decode(param_val_ids)
         else:
             allowed, stop_chars = self.gen_configs[p_type]
 
             param_val_ids = self._generate_from_mask(allowed, stop_chars)
-            self.gen_ids.extend(param_val_ids)
 
             return self.llm.decode(param_val_ids)
 
     def run(self, user_prompt: str) -> CallResult:
-        self.gen_ids = []
-
         prompter = PromptBuilder()
         prompt = prompter.make_prompt(self.functions, user_prompt)
         self.input_ids = self.llm.encode(prompt)[0].tolist()
