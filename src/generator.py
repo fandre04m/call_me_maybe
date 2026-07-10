@@ -64,40 +64,27 @@ def mask_logits(logits: List[float], allowed: Set[int]) -> List[float]:
     return logits
 
 
-class State(Enum):
-    SELECT_FUNCTION = 1
-    SELECT_PARAM = 2
-    SELECT_VALUE = 3
-    DONE = 4
-
-
-class Generator():
-    def __init__(self, functions: List[Function]) -> None:
-        self.llm = Small_LLM_Model()
-        self.functions = functions
-        self.input_ids: List[int] = []
-        self.max_tokens = 15
-        self.state = State.SELECT_FUNCTION
-        self.curr_func: Function
-        self.remaining_params = []
-        self.vocab_file: Dict[str, int] = self._get_vocab()
+class VocabConstraints:
+    def __init__(self, llm: Small_LLM_Model) -> None:
+        self.vocab_file: Dict[str, int] = self._get_vocab(llm)
         self.str_allowed: Set[int] = self._make_mask(
-            to_forbid="`#$^"
+            llm, to_forbid="`#$^"
         )
         self.num_allowed: Set[int] = self._make_mask(
-            to_allow=",\n0123456789-."
+            llm, to_allow=",\n0123456789-."
         )
         self.int_allowed: Set[int] = self._make_mask(
-            to_allow=",\n0123456789-"
+            llm, to_allow=",\n0123456789-"
         )
         self.gen_configs: Dict[str, Tuple[Set[int], Tuple[str, ...]]] = {
             "string": (self.str_allowed, ('"',)),
             "number": (self.num_allowed, (",", "\n")),
             "integer": (self.int_allowed, (",", "\n"))
         }
+        pass
 
-    def _get_vocab(self) -> Dict[str, int]:
-        path = self.llm.get_path_to_vocab_file()
+    def _get_vocab(self, llm: Small_LLM_Model) -> Dict[str, int]:
+        path = llm.get_path_to_vocab_file()
         with open(path, "r", encoding="utf-8") as f:
             vocab = json.load(f)
 
@@ -105,6 +92,7 @@ class Generator():
 
     def _make_mask(
         self,
+        llm: Small_LLM_Model,
         *,
         to_allow: str = "",
         to_forbid: str = ""
@@ -115,7 +103,7 @@ class Generator():
         forbid_set = set(to_forbid)
 
         for t_id in self.vocab_file.values():
-            t_text = self.llm.decode([t_id])
+            t_text = llm.decode([t_id])
 
             if allow_set:
                 if all(c in allow_set for c in t_text):
@@ -126,6 +114,29 @@ class Generator():
                     allowed.append(t_id)
 
         return set(allowed)
+
+
+class State(Enum):
+    SELECT_FUNCTION = 1
+    SELECT_PARAM = 2
+    SELECT_VALUE = 3
+    DONE = 4
+
+
+class Generator():
+    def __init__(
+        self,
+        functions: List[Function],
+        llm: Small_LLM_Model
+    ) -> None:
+        self.functions = functions
+        self.llm = llm
+        self.constraints = VocabConstraints(llm)
+        self.input_ids: List[int] = []
+        self.max_tokens = 15
+        self.state = State.SELECT_FUNCTION
+        self.curr_func: Function
+        self.remaining_params = []
 
     def _add_to_trie(self, trie: PrefixTrie, to_encode: str) -> None:
         token_ids = self.llm.encode(to_encode)[0].tolist()
@@ -216,7 +227,7 @@ class Generator():
 
             return self.llm.decode(param_val_ids)
         else:
-            allowed, stop_chars = self.gen_configs[p_type]
+            allowed, stop_chars = self.constraints.gen_configs[p_type]
 
             param_val_ids = self._generate_from_mask(allowed, stop_chars)
 

@@ -2,6 +2,7 @@
 from pathlib import Path
 import argparse
 from typing import List
+from llm_sdk import Small_LLM_Model
 from src import FileLoader, Generator, CallResult
 import json
 
@@ -34,7 +35,8 @@ def main() -> None:
     except (PermissionError, OSError) as e:
         print(f"Error: file system - {e}")
 
-    fsm = Generator(file_loader.func_definitions)
+    llm = Small_LLM_Model()
+    fsm = Generator(file_loader.func_definitions, llm)
     results: List[CallResult] = []
     # res: CallResult = fsm.run("")
     for prompt in file_loader.prompts:
