@@ -3,7 +3,6 @@ from enum import Enum
 from llm_sdk import Small_LLM_Model
 from .file_handling import Function, CallResult
 from .utils import PromptBuilder, to_type
-import time
 import json
 
 
@@ -70,7 +69,6 @@ class Generator():
         self.llm = Small_LLM_Model()
         self.functions = functions
         self.max_tokens = 15
-        self.elapsed_time: float = 0.0
         self.state = State.SELECT_FUNCTION
         self.curr_func: Function
         self.remaining_params = []
@@ -124,9 +122,7 @@ class Generator():
         return set(allowed)
 
     def _add_to_trie(self, trie: PrefixTrie, to_encode: str) -> None:
-        start = time.monotonic()
         token_ids = self.llm.encode(to_encode)[0].tolist()
-        self.elapsed_time += time.monotonic() - start
         trie.insert(token_ids, to_encode)
 
     def _mask_logits(
@@ -140,9 +136,7 @@ class Generator():
         return logits
 
     def _inject(self, to_encode: str) -> None:
-        start = time.monotonic()
         token_ids: List[int] = self.llm.encode(to_encode)[0].tolist()
-        self.elapsed_time += time.monotonic() - start
         self.input_ids.extend(token_ids)
         self.gen_ids.extend(token_ids)
         print(self.llm.decode(token_ids), end="")
@@ -150,7 +144,6 @@ class Generator():
     def _generate_from_trie(self, trie: PrefixTrie) -> List[int]:
         generated: List[int] = []
 
-        start = time.monotonic()
         while not trie.is_complete(generated):
             allowed = trie.allowed_tokens(generated)
             logits = self.llm.get_logits_from_input_ids(self.input_ids)
@@ -160,7 +153,6 @@ class Generator():
             generated.append(next_token)
             print(self.llm.decode([next_token]), end="")
 
-        self.elapsed_time += time.monotonic() - start
         return generated
 
     def _generate_from_mask(
@@ -170,7 +162,6 @@ class Generator():
     ) -> List[int]:
         generated: List[int] = []
 
-        start = time.monotonic()
         while len(generated) < self.max_tokens:
             logits = self.llm.get_logits_from_input_ids(self.input_ids)
             masked_logits = self._mask_logits(logits, allowed)
@@ -193,8 +184,6 @@ class Generator():
             self.input_ids.append(next_token)
             generated.append(next_token)
             print(tok_val, end="")
-
-        self.elapsed_time += time.monotonic() - start
 
         return generated
 
