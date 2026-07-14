@@ -3,7 +3,7 @@ from pathlib import Path
 import argparse
 from typing import List
 from llm_sdk import Small_LLM_Model
-from src import FileLoader, Generator, CallResult
+from src import FileLoader, FunctionCalllGenerator, CallResult
 import json
 
 
@@ -36,15 +36,14 @@ def main() -> None:
         print(f"Error: file system - {e}")
 
     llm = Small_LLM_Model()
-    fsm = Generator(file_loader.func_definitions, llm)
+    generator = FunctionCalllGenerator(file_loader.func_definitions, llm)
     results: List[CallResult] = []
     # res: CallResult = fsm.run("")
     for prompt in file_loader.prompts:
         try:
-            res: CallResult = fsm.run(prompt.prompt)
+            res: CallResult = generator.run(prompt.prompt)
             results.append(res)
             print("\nSuccess!")
-            # print(f"Elapsed time: {fsm.elapsed_time:.2f}")
         except ValueError as e:
             print(f"\nError: {e}")
             continue

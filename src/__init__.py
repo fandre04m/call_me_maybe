@@ -1,8 +1,8 @@
 from .file_handling import FileLoader, Function, Prompt, CallResult
 from .utils import PromptBuilder
-from .generator import PrefixTrie, Generator
+from .generator import PrefixTrie, FunctionCalllGenerator
 
 __all__ = [
     "FileLoader", "Function", "Prompt", "CallResult",
-    "PromptBuilder", "Generator", "PrefixTrie",
+    "PromptBuilder", "FunctionCalllGenerator", "PrefixTrie",
 ]
