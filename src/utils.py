@@ -52,3 +52,11 @@ def to_type(p_type: str, value: str) -> Union[str, int, float, bool]:
         return str(value)
     except ValueError as e:
         raise ValueError(f"Invalid {p_type}: {value!r}") from e
+
+
+class GenerationLogger:
+    def token(self, text: str) -> None:
+        print(text, end="", flush=True)
+
+    def prompt(self, text: str) -> None:
+        print(f"\nPrompt: {text}")

@@ -1,7 +1,7 @@
 from typing import Dict, List, Set, Tuple, Union
 from llm_sdk import Small_LLM_Model
 from .file_handling import Function, CallResult
-from .utils import PromptBuilder, to_type
+from .utils import PromptBuilder, GenerationLogger, to_type
 import json
 
 
@@ -119,9 +119,11 @@ class ConstrainedDecoder:
     def __init__(
         self,
         llm: Small_LLM_Model,
+        logger: GenerationLogger,
         max_tokens: int = 15
     ):
         self.llm = llm
+        self.logger = logger
         self.input_ids: List[int] = []
         self.max_tokens = max_tokens
 
@@ -132,7 +134,7 @@ class ConstrainedDecoder:
     def inject(self, to_encode: str) -> None:
         token_ids: List[int] = self.llm.encode(to_encode)[0].tolist()
         self.input_ids.extend(token_ids)
-        print(self.llm.decode(token_ids), end="")
+        self.logger.token(self.llm.decode(token_ids))
 
     def generate_from_trie(self, trie: PrefixTrie) -> List[int]:
         generated: List[int] = []
@@ -144,7 +146,7 @@ class ConstrainedDecoder:
             next_token = masked_logits.index(max(masked_logits))
             self.input_ids.append(next_token)
             generated.append(next_token)
-            print(self.llm.decode([next_token]), end="")
+            self.logger.token(self.llm.decode([next_token]))
 
         return generated
 
@@ -166,17 +168,17 @@ class ConstrainedDecoder:
                 default=-1,
             )
             if stop_idx != -1:
-                prefix = tok_val[:stop_idx]
+                prefix: str = tok_val[:stop_idx]
                 if prefix:
-                    prefix_ids = self.llm.encode(prefix)[0].tolist()
+                    prefix_ids: List[int] = self.llm.encode(prefix)[0].tolist()
                     self.input_ids.extend(prefix_ids)
                     generated.extend(prefix_ids)
-                    print(prefix, end="")
+                    self.logger.token(prefix)
                 break
 
             self.input_ids.append(next_token)
             generated.append(next_token)
-            print(tok_val, end="")
+            self.logger.token(tok_val)
 
         return generated
 
@@ -188,8 +190,9 @@ class FunctionCalllGenerator:
     ) -> None:
         self.functions = functions
         self.llm = llm
+        self.logger = GenerationLogger()
         self.constraints = VocabConstraints(llm)
-        self.decoder = ConstrainedDecoder(llm)
+        self.decoder = ConstrainedDecoder(llm, self.logger)
         self.curr_func: Function
         self.remaining_params: List[str] = []
 
@@ -221,7 +224,7 @@ class FunctionCalllGenerator:
     def _gen_param_value(self, p_type: str) -> str:
         if p_type == "boolean":
             bool_trie = PrefixTrie()
-            bool_vals = ["true", "false"]
+            bool_vals = ("true", "false")
 
             for val in bool_vals:
                 self.decoder.add_to_trie(bool_trie, val)
@@ -244,7 +247,7 @@ class FunctionCalllGenerator:
         prompt = prompter.make_prompt(self.functions, user_prompt)
         self.decoder.input_ids = self.llm.encode(prompt)[0].tolist()
 
-        print(f"\nPrompt: {user_prompt}")
+        self.logger.prompt(user_prompt)
         self.decoder.inject('{\n  "name": "')
 
         func_name = self._gen_func_name()
