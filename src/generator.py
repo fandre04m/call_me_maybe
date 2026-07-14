@@ -193,16 +193,20 @@ class FunctionCalllGenerator:
         self.logger = GenerationLogger()
         self.constraints = VocabConstraints(llm)
         self.decoder = ConstrainedDecoder(llm, self.logger)
+        self.funcs_trie = self._gen_funcs_trie(self.functions)
         self.curr_func: Function
         self.remaining_params: List[str] = []
 
-    def _gen_func_name(self) -> str:
+    def _gen_funcs_trie(self, functions: List[Function]) -> PrefixTrie:
         funcs_trie = PrefixTrie()
 
-        for func in self.functions:
+        for func in functions:
             self.decoder.add_to_trie(funcs_trie, func.name)
 
-        func_name_ids = self.decoder.generate_from_trie(funcs_trie)
+        return funcs_trie
+
+    def _gen_func_name(self) -> str:
+        func_name_ids = self.decoder.generate_from_trie(self.funcs_trie)
 
         return self.llm.decode(func_name_ids)
 
