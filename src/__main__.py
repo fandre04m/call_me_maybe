@@ -8,6 +8,12 @@ import json
 
 
 def main() -> None:
+    """Run the function calling pipeline.
+
+    Parses command-line arguments, loads function definitions and prompts,
+    generates function calls for each prompt, and writes the results to the
+    output file.
+    """
     parser = argparse.ArgumentParser()
 
     parser.add_argument(
@@ -50,4 +56,5 @@ def main() -> None:
     file_loader.write_call_result(results, Path(args.output))
 
 
-main()
+if __name__ == "__main__":
+    main()
