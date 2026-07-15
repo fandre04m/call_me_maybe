@@ -6,16 +6,27 @@ import json
 
 
 class TrieNode:
+    """
+    Node in a prefix trie storing token ID pathing
+    and terminal value, if on final node.
+    """
     def __init__(self) -> None:
         self.children: Dict[int, TrieNode] = {}
         self.name: str | None = None
 
 
 class PrefixTrie:
+    """Trie for storing and matching sequences of token IDs."""
     def __init__(self) -> None:
         self.root = TrieNode()
 
     def insert(self, token_ids: List[int], name: str) -> None:
+        """Insert a token sequence into the trie.
+
+        Args:
+            token_ids: Sequence of token IDs representing a value.
+            name: Value associated with the completed token sequence.
+        """
         current = self.root
 
         for t_id in token_ids:
@@ -26,6 +37,14 @@ class PrefixTrie:
         current.name = name
 
     def _get_node(self, prefix: List[int]) -> TrieNode | None:
+        """Return trie node corresponding to a token prefix.
+
+        Args:
+            prefix: Token ID sequence to search for.
+
+        Returns:
+            Matching trie node if prefix exists, otherwise ``None``.
+        """
         current = self.root
 
         for token_id in prefix:
@@ -37,6 +56,15 @@ class PrefixTrie:
         return current
 
     def allowed_tokens(self, prefix: List[int]) -> Set[int]:
+        """Return valid next token IDs for a prefix.
+
+        Args:
+            prefix: Current token prefix.
+
+        Returns:
+            Set of token IDs that can follow the prefix. Returns an empty set
+            if the prefix is not present in the trie.
+        """
         node: TrieNode | None = self._get_node(prefix)
 
         if node is None:
@@ -45,6 +73,14 @@ class PrefixTrie:
         return set(node.children.keys())
 
     def get_name(self, prefix: List[int]) -> str | None:
+        """Return value associated with a completed token sequence.
+
+        Args:
+            prefix: Token sequence to look up.
+
+        Returns:
+            Associated value if the sequence is complete, otherwise ``None``.
+        """
         node: TrieNode | None = self._get_node(prefix)
 
         if node is None:
@@ -53,10 +89,29 @@ class PrefixTrie:
         return node.name
 
     def is_complete(self, prefix: List[int]) -> bool:
+        """Check whether a token sequence represents a complete trie entry.
+
+        Args:
+            prefix: Token sequence to check.
+
+        Returns:
+            ``True`` if the sequence matches stored entry, otherwise ``False``.
+        """
         return self.get_name(prefix) is not None
 
 
 def mask_logits(logits: List[float], allowed: Set[int]) -> List[float]:
+    """Mask logits for token IDs that are not allowed.
+
+    Replaces logits of disallowed tokens with negative infinity.
+
+    Args:
+        logits: Model output logits.
+        allowed: Set of permitted token IDs.
+
+    Returns:
+        Modified list of logits with disallowed entries masked.
+    """
     for token_id in range(len(logits)):
         if token_id not in allowed:
             logits[token_id] = float("-inf")
@@ -64,6 +119,7 @@ def mask_logits(logits: List[float], allowed: Set[int]) -> List[float]:
 
 
 class VocabConstraints:
+    """Build token masks used for constrained text generation."""
     def __init__(self, llm: Small_LLM_Model) -> None:
         self.vocab_file: Dict[str, int] = self._get_vocab(llm)
         self.str_allowed: Set[int] = self._make_mask(
@@ -83,6 +139,14 @@ class VocabConstraints:
         pass
 
     def _get_vocab(self, llm: Small_LLM_Model) -> Dict[str, int]:
+        """Load model vocabulary from disk.
+
+        Args:
+            llm: Language model instance.
+
+        Returns:
+            Mapping from token strings to token IDs.
+        """
         path = llm.get_path_to_vocab_file()
         with open(path, "r", encoding="utf-8") as f:
             vocab = json.load(f)
@@ -96,6 +160,16 @@ class VocabConstraints:
         to_allow: str = "",
         to_forbid: str = ""
     ) -> Set[int]:
+        """Create a token mask based on allowed or forbidden characters.
+
+        Args:
+            llm: Language model used to decode token IDs.
+            to_allow: Characters that decoded tokens may contain.
+            to_forbid: Characters that decoded tokens must not contain.
+
+        Returns:
+            Set of token IDs satisfying the specified constraint.
+        """
         allowed = []
 
         allow_set = set(to_allow)
@@ -116,6 +190,7 @@ class VocabConstraints:
 
 
 class ConstrainedDecoder:
+    """Generate tokens while enforcing trie or vocabulary constraints."""
     def __init__(
         self,
         llm: Small_LLM_Model,
@@ -128,15 +203,34 @@ class ConstrainedDecoder:
         self.max_tokens = max_tokens
 
     def add_to_trie(self, trie: PrefixTrie, to_encode: str) -> None:
+        """Encode a string and insert it into a trie.
+
+        Args:
+            trie: Trie receiving encoded token sequence.
+            to_encode: String to encode and insert.
+        """
         token_ids = self.llm.encode(to_encode)[0].tolist()
         trie.insert(token_ids, to_encode)
 
     def inject(self, to_encode: str) -> None:
+        """Append encoded text directly to decoder input.
+
+        Args:
+            to_encode: Text to encode and append to current input.
+        """
         token_ids: List[int] = self.llm.encode(to_encode)[0].tolist()
         self.input_ids.extend(token_ids)
         self.logger.token(self.llm.decode(token_ids))
 
     def generate_from_trie(self, trie: PrefixTrie) -> List[int]:
+        """Generate tokens constrained by a prefix trie.
+
+        Args:
+            trie: Trie defining valid token sequences.
+
+        Returns:
+            Generated token IDs forming a complete trie entry.
+        """
         generated: List[int] = []
 
         while not trie.is_complete(generated):
@@ -155,6 +249,15 @@ class ConstrainedDecoder:
         allowed: Set[int],
         stop_chars: Tuple[str, ...]
     ) -> List[int]:
+        """Generate tokens using a vocabulary mask until a stop character.
+
+        Args:
+            allowed: Set of permitted token IDs.
+            stop_chars: Characters indicating where to stop generation.
+
+        Returns:
+            Generated token IDs excluding terminating characters.
+        """
         generated: List[int] = []
 
         while len(generated) < self.max_tokens:
@@ -163,10 +266,12 @@ class ConstrainedDecoder:
             next_token = masked_logits.index(max(masked_logits))
 
             tok_val = self.llm.decode([next_token])
+            # Check if token is a lone stop char
             stop_idx = min(
                 (tok_val.index(c) for c in stop_chars if c in tok_val),
                 default=-1,
             )
+            # If not, extract everything but stop char.
             if stop_idx != -1:
                 prefix: str = tok_val[:stop_idx]
                 if prefix:
@@ -184,6 +289,7 @@ class ConstrainedDecoder:
 
 
 class FunctionCalllGenerator:
+    """Generate structured function calls using constrained decoding."""
     def __init__(
         self, functions: List[Function],
         llm: Small_LLM_Model
@@ -193,11 +299,23 @@ class FunctionCalllGenerator:
         self.logger = GenerationLogger()
         self.constraints = VocabConstraints(llm)
         self.decoder = ConstrainedDecoder(llm, self.logger)
-        self.funcs_trie = self._gen_funcs_trie(self.functions)
+        self.funcs_trie: PrefixTrie = self._gen_funcs_trie(self.functions)
+        self.param_tries: Dict[str, Dict[str, PrefixTrie]] = {}
+        self.bool_trie = PrefixTrie()
+        for val in ("false", "true"):
+            self.decoder.add_to_trie(self.bool_trie, val)
         self.curr_func: Function
         self.remaining_params: List[str] = []
 
     def _gen_funcs_trie(self, functions: List[Function]) -> PrefixTrie:
+        """Create a trie containing available function names.
+
+        Args:
+            functions: Function definitions to include.
+
+        Returns:
+            Trie containing encoded function names.
+        """
         funcs_trie = PrefixTrie()
 
         for func in functions:
@@ -205,35 +323,63 @@ class FunctionCalllGenerator:
 
         return funcs_trie
 
+    def _get_param_trie(self, func_name: str, param_name: str) -> PrefixTrie:
+        """Return trie for a function parameter name.
+
+        Creates the trie on first access for repeated usage.
+
+        Args:
+            func_name: Name of function owning the parameter.
+            param_name: Parameter name.
+
+        Returns:
+            Trie containing encoded parameter name.
+        """
+        if func_name not in self.param_tries:
+            self.param_tries[func_name] = {}
+
+        if param_name not in self.param_tries[func_name]:
+            param_trie = PrefixTrie()
+            self.decoder.add_to_trie(param_trie, param_name)
+            self.param_tries[func_name][param_name] = param_trie
+
+        return self.param_tries[func_name][param_name]
+
     def _gen_func_name(self) -> str:
+        """Generate a function name.
+
+        Returns:
+            Generated function name.
+        """
         func_name_ids = self.decoder.generate_from_trie(self.funcs_trie)
 
         return self.llm.decode(func_name_ids)
 
     def _gen_param_name(self) -> str:
-        param_trie = PrefixTrie()
+        """Generate next parameter name.
 
+        Returns:
+            Generated parameter name.
+        """
         next_param = self.remaining_params[0]
-        self.decoder.add_to_trie(
-            param_trie,
-            next_param
-        )
+        param_trie = self._get_param_trie(self.curr_func.name, next_param)
 
         param_name_ids = self.decoder.generate_from_trie(param_trie)
-
         self.remaining_params.remove(next_param)
 
         return self.llm.decode(param_name_ids)
 
     def _gen_param_value(self, p_type: str) -> str:
+        """Generate a parameter value for a given type.
+
+        Args:
+            p_type: Parameter type.
+
+        Returns:
+            Generated parameter value as text.
+        """
         if p_type == "boolean":
-            bool_trie = PrefixTrie()
-            bool_vals = ("true", "false")
-
-            for val in bool_vals:
-                self.decoder.add_to_trie(bool_trie, val)
-
-            param_val_ids = self.decoder.generate_from_trie(bool_trie)
+            param_val_ids = self.decoder.generate_from_trie(self.bool_trie)
 
             return self.llm.decode(param_val_ids)
         else:
@@ -247,6 +393,15 @@ class FunctionCalllGenerator:
             return self.llm.decode(param_val_ids)
 
     def run(self, user_prompt: str) -> CallResult:
+        """Generate a function call for a user prompt.
+
+        Args:
+            user_prompt: Natural language prompt describing desired action.
+
+        Returns:
+            Generated function call containing selected function name and
+            parameter values.
+        """
         prompter = PromptBuilder()
         prompt = prompter.make_prompt(self.functions, user_prompt)
         self.decoder.input_ids = self.llm.encode(prompt)[0].tolist()
