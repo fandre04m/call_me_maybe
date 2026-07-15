@@ -4,7 +4,17 @@ import json
 
 
 class PromptBuilder:
+    """Build prompts for constrained function call generation."""
     def make_prompt(self, functions: List[Function], user_prompt: str) -> str:
+        """Construct a prompt containing available functions and user request.
+
+        Args:
+            functions: Available function definitions.
+            user_prompt: User's natural language request.
+
+        Returns:
+            Prompt formatted for function call generation.
+        """
         prompt = [
             "You are a function calling tool.\n",
             "Produce ONLY valid JSON.",
@@ -33,6 +43,18 @@ class PromptBuilder:
 
 
 def to_type(p_type: str, value: str) -> Union[str, int, float, bool]:
+    """Convert a generated string to the requested parameter type.
+
+    Args:
+        p_type: Target parameter type.
+        value: Generated value as text.
+
+    Returns:
+        Value converted to requested type.
+
+    Raises:
+        ValueError: If the value cannot be converted to the requested type.
+    """
     try:
         if p_type == "string":
             try:
@@ -55,8 +77,19 @@ def to_type(p_type: str, value: str) -> Union[str, int, float, bool]:
 
 
 class GenerationLogger:
+    """Log prompts and generated tokens during decoding."""
     def token(self, text: str) -> None:
+        """Log generated token text without a trailing newline.
+
+        Args:
+            text: Decoded token text to display.
+        """
         print(text, end="", flush=True)
 
     def prompt(self, text: str) -> None:
+        """Log the user prompt before generation.
+
+        Args:
+            text: User prompt to display.
+        """
         print(f"\nPrompt: {text}")
