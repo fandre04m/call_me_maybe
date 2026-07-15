@@ -24,3 +24,7 @@ llm_sdk = {path = "./llm_sdk", editable = true}
 
 [tool.hatch.build.targets.wheel]
 packages = ["src"]
+
+[[tool.mypy.overrides]]
+module = "llm_sdk.*"
+warn_return_any = false
