@@ -149,7 +149,7 @@ class VocabConstraints:
         """
         path = llm.get_path_to_vocab_file()
         with open(path, "r", encoding="utf-8") as f:
-            vocab = json.load(f)
+            vocab: Dict[str, int] = json.load(f)
 
         return vocab
 
@@ -425,7 +425,7 @@ class FunctionCalllGenerator:
         for func in self.functions:
             if func_name == func.name:
                 self.curr_func = func
-                self.remaining_params: List[str] = list(func.parameters.keys())
+                self.remaining_params = list(func.parameters.keys())
 
         while self.remaining_params:
             self.decoder.inject('    "')
@@ -438,8 +438,8 @@ class FunctionCalllGenerator:
             self.decoder.inject('": ' if is_num else '": "')
 
             p_value = self._gen_param_value(p_type)
-            p_value = to_type(p_type, p_value)
-            params[p_name] = p_value
+            converted_val: str | int | float | bool = to_type(p_type, p_value)
+            params[p_name] = converted_val
 
             if self.remaining_params:
                 self.decoder.inject(',\n' if is_num else '",\n')

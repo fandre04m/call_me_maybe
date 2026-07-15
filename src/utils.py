@@ -1,5 +1,5 @@
 from .file_handling import Function
-from typing import List, Union
+from typing import List, Union, cast
 import json
 
 
@@ -58,7 +58,7 @@ def to_type(p_type: str, value: str) -> Union[str, int, float, bool]:
     try:
         if p_type == "string":
             try:
-                return json.loads(f'"{value}"')
+                return cast(str, json.loads(f'"{value}"'))
             except json.JSONDecodeError:
                 pass
         if p_type == "number":

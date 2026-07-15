@@ -98,7 +98,8 @@ def load_json(file_path: Path) -> List[Dict[str, str]]:
         Parsed JSON data.
     """
     with open(file_path, "r", encoding="utf-8") as f:
-        return json.load(f)
+        data: List[Dict[str, str]] = json.load(f)
+        return data
 
 
 class FileLoader:

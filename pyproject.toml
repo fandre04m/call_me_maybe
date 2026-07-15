@@ -11,6 +11,7 @@ authors = [
   {name="fandre-m", email="fandre-m@student.42porto.com"},
 ]
 dependencies = [
+  "flake8",
   "pydantic>=2.0.0",
   "numpy",
   "llm_sdk",
