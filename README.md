@@ -117,7 +117,7 @@ generation required a different strategy, leading to the use of vocabulary masks
 Getting reliable enough results to be able to stop generation correctly on parameter values was a decent
 struggle, since we using such a small LLM.
 
-Another big challenge I faced initially was a sub otpimal first research on LLM constrained decoding,
+Another big challenge I faced initially was a sub-optimal first research on LLM constrained decoding,
 which led me in paths that could not obtain passable results. Those required big restructuring a few times
 and made it so the final product was not exactly what I wanted to produce, even if it generates good results.
 
@@ -174,8 +174,7 @@ Example output:
 
 ### AI Usage
 
-AI was used in a multitude of ways:
-Explaining concepts, since it is so much faster at finding resources online and explaining them.
-Debugging, mainly producing edge cases and correcting hard to find bugs in the code.
-Producing project related documentation, but mainly docstrings.
+ - Explaining concepts, since it is so much faster at finding resources online and explaining them.
+ - Debugging, mainly producing edge cases and correcting hard to find bugs in the code.
+ - Producing project related documentation, but mainly docstrings.
 
