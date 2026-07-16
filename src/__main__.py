@@ -44,7 +44,6 @@ def main() -> None:
     llm = Small_LLM_Model()
     generator = FunctionCalllGenerator(file_loader.func_definitions, llm)
     results: List[CallResult] = []
-    # res: CallResult = fsm.run("")
     for prompt in file_loader.prompts:
         try:
             res: CallResult = generator.run(prompt.prompt)

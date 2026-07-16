@@ -12,6 +12,7 @@ authors = [
 ]
 dependencies = [
   "flake8",
+  "mypy",
   "pydantic>=2.0.0",
   "numpy",
   "llm_sdk",
