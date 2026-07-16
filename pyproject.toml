@@ -28,4 +28,11 @@ packages = ["src"]
 
 [[tool.mypy.overrides]]
 module = "llm_sdk.*"
+ignore_missing_imports = true
 warn_return_any = false
+disallow_untyped_defs = false
+check_untyped_defs = false
+
+[[tool.mypy.overrides]]
+module = ["torch", "transformers", "huggingface_hub"]
+follow_imports = "skip"
