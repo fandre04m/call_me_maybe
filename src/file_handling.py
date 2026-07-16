@@ -4,6 +4,10 @@ from typing import List, Dict, Union, Literal
 import json
 
 
+class EmptyDataError(Exception):
+    """Raised when a required JSON file contains no entries."""
+
+
 class Parameter(BaseModel):
     """Schema describing a function parameter type."""
     type: Literal["string", "number", "integer", "boolean"]
@@ -118,6 +122,9 @@ class FileLoader:
             functions_path: Path to function definitions file.
         """
         func_lst = load_json(functions_path)
+        if not func_lst:
+            raise EmptyDataError("Function definitions file is empty.")
+
         for i, func in enumerate(func_lst):
             try:
                 self.func_definitions.append(Function.model_validate(func))
@@ -142,6 +149,9 @@ class FileLoader:
             input_path: Path to prompt file.
         """
         prompt_lst = load_json(input_path)
+        if not prompt_lst:
+            raise EmptyDataError("Function calling tests file is empty.")
+
         for i, prompt in enumerate(prompt_lst):
             try:
                 self.prompts.append(Prompt.model_validate(prompt))
@@ -162,7 +172,7 @@ class FileLoader:
         data = []
         for res in call_res:
             data.append(res.model_dump())
-        output_path.parent.mkdir(parents=True, exist_ok=True)
 
+        output_path.parent.mkdir(parents=True, exist_ok=True)
         with open(output_path, "w", encoding="utf-8") as f:
             json.dump(data, f, indent=2)

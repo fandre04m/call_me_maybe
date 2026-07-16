@@ -3,7 +3,9 @@ from pathlib import Path
 import argparse
 from typing import List
 from llm_sdk import Small_LLM_Model
-from src import FileLoader, FunctionCalllGenerator, CallResult
+from src import (
+    FileLoader, FunctionCalllGenerator, CallResult, EmptyDataError
+)
 import json
 
 
@@ -34,12 +36,18 @@ def main() -> None:
     try:
         file_loader.load_func_definitions(Path(args.functions_definition))
         file_loader.load_prompts(Path(args.input))
+    except EmptyDataError as e:
+        print(f"Error: file data - {e}")
+        return
     except FileNotFoundError as e:
         print(f"Error: file not found - {e}")
+        return
     except json.JSONDecodeError as e:
         print(f"Error: invalid JSON - {e}")
+        return
     except (PermissionError, OSError) as e:
         print(f"Error: file system - {e}")
+        return
 
     llm = Small_LLM_Model()
     generator = FunctionCalllGenerator(file_loader.func_definitions, llm)
@@ -48,11 +56,15 @@ def main() -> None:
         try:
             res: CallResult = generator.run(prompt.prompt)
             results.append(res)
-            print("\nSuccess!")
+            print()
         except ValueError as e:
             print(f"\nError: {e}")
             continue
-    file_loader.write_call_result(results, Path(args.output))
+    try:
+        file_loader.write_call_result(results, Path(args.output))
+    except OSError as e:
+        print(f"Error: could not write to {args.output} - {e}")
+        return
 
 
 if __name__ == "__main__":
